@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package keeper;
+option go_package = "/keeper";
+import "google/api/annotations.proto";
+
+
+service keeper {
+  rpc Health(Empty) returns(HealthMain) {
+    option (google.api.http) = {
+      get: "/health"
+    };
+  }
+}
+
+message Empty{}
+
+message HealthMain {
+  string Status = 1;
+  string Version = 2;
+  string Message = 3;
+}
+

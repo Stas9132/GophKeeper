@@ -4,12 +4,17 @@ import (
 	"bufio"
 	"fmt"
 	"github.com/stas9132/GophKeeper/internal/client"
+	"github.com/stas9132/GophKeeper/internal/logger"
+	"log"
 	"os"
 	"strings"
 )
 
-func shell() {
-	cl := client.NewClient()
+func shell(l logger.Logger) {
+	cl, err := client.NewClient(l)
+	if err != nil {
+		log.Fatalln(err)
+	}
 	s := bufio.NewScanner(os.Stdin)
 	for s.Scan() {
 		flds := strings.Fields(s.Text())
@@ -20,21 +25,27 @@ func shell() {
 		switch cmd {
 		case "exit":
 			return
-		case "dial":
-			if err := cl.Dial(); err != nil {
-				fmt.Println(err)
-				continue
-			}
-		case "close":
-			if err := cl.Close(); err != nil {
-				fmt.Println(err)
-				continue
-			}
 		case "health":
-			if err := cl.Health(); err != nil {
+			if err = cl.Health(); err != nil {
 				fmt.Println(err)
 				continue
 			}
+		case "register":
+			if err = cl.Register(flds); err != nil {
+				fmt.Println(err)
+				continue
+			}
+		case "login":
+			if err = cl.Login(flds); err != nil {
+				fmt.Println(err)
+				continue
+			}
+		case "logout":
+			if err = cl.Logout(); err != nil {
+				fmt.Println(err)
+				continue
+			}
+
 		default:
 			fmt.Println("unknown command")
 			continue
@@ -44,5 +55,6 @@ func shell() {
 }
 
 func main() {
-	shell()
+	l := logger.NewSlogLogger()
+	shell(l)
 }

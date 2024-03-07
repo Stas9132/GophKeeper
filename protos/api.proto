@@ -11,7 +11,25 @@ service keeper {
       get: "/health"
     };
   }
+  rpc Register(AuthMain) returns(Empty) {
+    option (google.api.http) = {
+      post: "/register"
+      body: "*"
+    };
+  }
+  rpc Login(AuthMain) returns(Empty) {
+    option (google.api.http) = {
+      post: "/login"
+      body: "*"
+    };
+  }
+  rpc Logout(Empty) returns(Empty) {
+    option (google.api.http) = {
+      post: "/logout"
+    };
+  }
 }
+
 
 message Empty{}
 
@@ -19,5 +37,10 @@ message HealthMain {
   string Status = 1;
   string Version = 2;
   string Message = 3;
+}
+
+message AuthMain {
+  string User = 1;
+  string Password = 2;
 }
 

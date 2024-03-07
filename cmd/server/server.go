@@ -3,14 +3,16 @@ package main
 import (
 	"context"
 	"errors"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	r2 "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/stas9132/GophKeeper/internal/api"
+	"github.com/stas9132/GophKeeper/internal/auth"
 	"github.com/stas9132/GophKeeper/internal/config"
-	"github.com/stas9132/GophKeeper/internal/logger"
 	"github.com/stas9132/GophKeeper/keeper"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
+
 	"log"
 	"log/slog"
 	"net"
@@ -22,12 +24,23 @@ import (
 	"time"
 )
 
-var ll logger.Logger
+var ll *slog.Logger
 
 func run(ctx context.Context) <-chan error {
+
+	interceptorLogger := func(l *slog.Logger) logging.Logger {
+		return logging.LoggerFunc(func(ctx context.Context, lvl logging.Level, msg string, fields ...any) {
+			l.Log(ctx, slog.Level(lvl), msg, fields...)
+		})
+	}
+
 	res := make(chan error, 1)
 	time.AfterFunc(100*time.Millisecond, func() {
-		s := grpc.NewServer()
+		s := grpc.NewServer(grpc.ChainUnaryInterceptor(
+			logging.UnaryServerInterceptor(interceptorLogger(ll),
+				[]logging.Option{logging.WithLogOnEvents(logging.StartCall, logging.FinishCall)}...),
+			auth.UnaryServerInterceptor(ll),
+		))
 		wg := sync.WaitGroup{}
 		wg.Add(1)
 		go func() {
@@ -35,7 +48,10 @@ func run(ctx context.Context) <-chan error {
 			if err != nil {
 				log.Fatalln(lis, err)
 			}
-			a := api.NewAPI(ll)
+			a, err := api.NewAPI(ll)
+			if err != nil {
+				log.Fatalln(err)
+			}
 			keeper.RegisterKeeperServer(s, a)
 			reflection.Register(s)
 			log.Println("gRPC control service starts", config.ListenAddress)

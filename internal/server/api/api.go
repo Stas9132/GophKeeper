@@ -5,7 +5,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stas9132/GophKeeper/internal/config"
 	"github.com/stas9132/GophKeeper/internal/logger"
-	"github.com/stas9132/GophKeeper/internal/storage"
+	"github.com/stas9132/GophKeeper/internal/server/storage"
 	"github.com/stas9132/GophKeeper/keeper"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"

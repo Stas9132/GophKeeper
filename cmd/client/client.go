@@ -68,7 +68,7 @@ func shell(l logger.Logger) {
 				fmt.Println(i, key)
 			}
 		case "sync":
-			if err = cl.Sync(); err != nil {
+			if err = cl.SyncList(); err != nil {
 				fmt.Println(err)
 				continue
 			}

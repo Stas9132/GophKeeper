@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"sync"
 	"time"
 )
 
@@ -18,6 +19,7 @@ type API struct {
 	logger.Logger
 	keeper.UnimplementedKeeperServer
 	storage Storage
+	db      *sync.Map
 }
 
 type Storage interface {
@@ -27,13 +29,14 @@ type Storage interface {
 }
 
 func NewAPI(logger logger.Logger) (*API, error) {
-	s3, err := storage.NewS3()
+	s3, err := storage.NewS3(logger)
 	if err != nil {
 		return nil, err
 	}
 	return &API{
 		Logger:  logger,
 		storage: s3,
+		db:      &sync.Map{},
 	}, nil
 }
 
@@ -90,4 +93,9 @@ func (a *API) Logout(ctx context.Context, in *keeper.Empty) (*keeper.Empty, erro
 		return nil, status.Error(codes.Unknown, err.Error())
 	}
 	return &keeper.Empty{}, nil
+}
+
+func (a *API) Sync(ctx context.Context, in *keeper.SyncMain) (*keeper.SyncMain, error) {
+
+	return in, nil
 }

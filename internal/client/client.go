@@ -37,7 +37,7 @@ var ErrInvFormatCommand = errors.New("invalid format command")
 var ErrObjectNotFound = errors.New("object not found")
 
 func NewClient(l logger.Logger) (*Client, error) {
-	s3, err := storage.NewS3()
+	s3, err := storage.NewS3(l)
 	if err != nil {
 		return nil, err
 	}
@@ -158,9 +158,18 @@ keyExist:
 }
 
 func (c *Client) List() ([]string, error) {
+	c.Lock()
+	defer c.Unlock()
 	return c.storedKeys, nil
 }
 
-func (c *Client) Sync() error {
+func (c *Client) SyncList() error {
+	c.Lock()
+	defer c.Unlock()
+	s, err := c.Sync(context.Background(), &keeper.SyncMain{Keys: c.storedKeys})
+	if err != nil {
+		return err
+	}
+	c.storedKeys = s.GetKeys()
 	return nil
 }

@@ -26,6 +26,7 @@ type KeeperClient interface {
 	Register(ctx context.Context, in *AuthMain, opts ...grpc.CallOption) (*Empty, error)
 	Login(ctx context.Context, in *AuthMain, opts ...grpc.CallOption) (*Empty, error)
 	Logout(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Empty, error)
+	Sync(ctx context.Context, in *SyncMain, opts ...grpc.CallOption) (*SyncMain, error)
 }
 
 type keeperClient struct {
@@ -72,6 +73,15 @@ func (c *keeperClient) Logout(ctx context.Context, in *Empty, opts ...grpc.CallO
 	return out, nil
 }
 
+func (c *keeperClient) Sync(ctx context.Context, in *SyncMain, opts ...grpc.CallOption) (*SyncMain, error) {
+	out := new(SyncMain)
+	err := c.cc.Invoke(ctx, "/keeper.keeper/Sync", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // KeeperServer is the server API for Keeper service.
 // All implementations must embed UnimplementedKeeperServer
 // for forward compatibility
@@ -80,6 +90,7 @@ type KeeperServer interface {
 	Register(context.Context, *AuthMain) (*Empty, error)
 	Login(context.Context, *AuthMain) (*Empty, error)
 	Logout(context.Context, *Empty) (*Empty, error)
+	Sync(context.Context, *SyncMain) (*SyncMain, error)
 	mustEmbedUnimplementedKeeperServer()
 }
 
@@ -98,6 +109,9 @@ func (UnimplementedKeeperServer) Login(context.Context, *AuthMain) (*Empty, erro
 }
 func (UnimplementedKeeperServer) Logout(context.Context, *Empty) (*Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Logout not implemented")
+}
+func (UnimplementedKeeperServer) Sync(context.Context, *SyncMain) (*SyncMain, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Sync not implemented")
 }
 func (UnimplementedKeeperServer) mustEmbedUnimplementedKeeperServer() {}
 
@@ -184,6 +198,24 @@ func _Keeper_Logout_Handler(srv interface{}, ctx context.Context, dec func(inter
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Keeper_Sync_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SyncMain)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(KeeperServer).Sync(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/keeper.keeper/Sync",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(KeeperServer).Sync(ctx, req.(*SyncMain))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Keeper_ServiceDesc is the grpc.ServiceDesc for Keeper service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -206,6 +238,10 @@ var Keeper_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Logout",
 			Handler:    _Keeper_Logout_Handler,
+		},
+		{
+			MethodName: "Sync",
+			Handler:    _Keeper_Sync_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

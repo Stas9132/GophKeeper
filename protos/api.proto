@@ -26,6 +26,13 @@ service keeper {
   rpc Logout(Empty) returns(Empty) {
     option (google.api.http) = {
       post: "/logout"
+      body: "*"
+    };
+  }
+  rpc Sync(SyncMain) returns(SyncMain){
+    option (google.api.http) = {
+      post: "/sync"
+      body: "*"
     };
   }
 }
@@ -44,3 +51,6 @@ message AuthMain {
   string Password = 2;
 }
 
+message SyncMain {
+  repeated string Keys = 1;
+}

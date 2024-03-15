@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"github.com/stas9132/GophKeeper/internal/client"
+	"github.com/stas9132/GophKeeper/internal/config"
 	"github.com/stas9132/GophKeeper/internal/logger"
 	"log"
 	"os"
@@ -45,7 +46,8 @@ func shell(l logger.Logger) {
 				fmt.Println(err)
 				continue
 			}
-
+		case "help":
+			fmt.Println("Valid commands:\nregister\nlogin\nlogout\nhealth\nexit")
 		default:
 			fmt.Println("unknown command")
 			continue
@@ -55,6 +57,14 @@ func shell(l logger.Logger) {
 }
 
 func main() {
+	config.Init()
+
+	if config.PrintVersion {
+		log.Println("Version:", config.Version)
+		log.Println("Build date:", config.BuildDate)
+		return
+	}
+
 	l := logger.NewSlogLogger()
 	shell(l)
 }

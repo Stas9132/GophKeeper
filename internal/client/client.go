@@ -63,7 +63,7 @@ func (c *Client) Register(flds []string) error {
 
 func (c *Client) Login(flds []string) error {
 	if len(flds) != 3 {
-		fmt.Println("usage: register <user name> <password>")
+		fmt.Println("usage: login <user name> <password>")
 		return ErrInvFormatCommand
 	}
 	var header metadata.MD

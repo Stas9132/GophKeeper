@@ -46,8 +46,34 @@ func shell(l logger.Logger) {
 				fmt.Println(err)
 				continue
 			}
+		case "put":
+			if err = cl.Put(flds); err != nil {
+				fmt.Println(err)
+				continue
+			}
+		case "get":
+			data, err := cl.Get(flds)
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+			fmt.Println(data)
+		case "list":
+			keys, err := cl.List()
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+			for i, key := range keys {
+				fmt.Println(i, key)
+			}
+		case "sync":
+			if err = cl.Sync(); err != nil {
+				fmt.Println(err)
+				continue
+			}
 		case "help":
-			fmt.Println("Valid commands:\nregister\nlogin\nlogout\nhealth\nexit")
+			fmt.Println("Valid commands:\nregister\nlogin\nlogout\nhealth\nput\nget\nsync\nexit")
 		default:
 			fmt.Println("unknown command")
 			continue
@@ -57,6 +83,8 @@ func shell(l logger.Logger) {
 }
 
 func main() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
 	config.Init()
 
 	if config.PrintVersion {

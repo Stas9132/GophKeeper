@@ -15,7 +15,7 @@ const (
 )
 
 type S3 struct {
-	minioClient *minio.Client
+	*minio.Client
 }
 
 func NewS3() (*S3, error) {
@@ -39,7 +39,7 @@ func NewS3() (*S3, error) {
 		log.Printf("Successfully created %s\n", authBucketName)
 	}
 
-	return &S3{minioClient: minioClient}, nil
+	return &S3{minioClient}, nil
 }
 
 const (
@@ -48,19 +48,9 @@ const (
 )
 
 func (s *S3) Register(ctx context.Context, user, password string) (bool, error) {
-	// Upload the test file
-	// Change the value of filePath if the file is in another location
-	objectName := "testdata"
-	filePath := "c:\\minio\\file.txt"
-	contentType := "application/octet-stream"
-
-	// Upload the test file with FPutObject
-	info, err := s.minioClient.FPutObject(ctx, authBucketName, objectName, filePath, minio.PutObjectOptions{ContentType: contentType})
-	if err != nil {
-		log.Fatalln(err)
+	if err := s.MakeBucket(ctx, user, minio.MakeBucketOptions{Region: location, ObjectLocking: true}); err != nil {
+		return false, err
 	}
-
-	log.Printf("Successfully uploaded %s of size %d\n", objectName, info.Size)
 	return true, nil
 }
 

@@ -40,7 +40,7 @@ func interceptor(logger logger.Logger) grpc.UnaryServerInterceptor {
 			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, errors.New("unexpected signed method")
 			}
-			return nil, nil
+			return []byte("123"), nil
 		})
 		if err != nil {
 			return nil, status.Errorf(codes.Unauthenticated, err.Error())
@@ -48,7 +48,7 @@ func interceptor(logger logger.Logger) grpc.UnaryServerInterceptor {
 
 		if c, ok := t.Claims.(*jwt.MapClaims); ok && t.Valid {
 			if u, ok := (*c)["iss"].(string); ok {
-				ctx = context.WithValue(ctx, "", u)
+				ctx = context.WithValue(ctx, "iss", u)
 			}
 		} else {
 			fmt.Println(c)

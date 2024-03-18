@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"strings"
 	"sync"
 	"time"
 )
@@ -59,7 +60,7 @@ func (a *API) Register(ctx context.Context, in *keeper.AuthMain) (*keeper.Empty,
 
 	j, err := jwt.NewWithClaims(jwt.SigningMethodHS256,
 		jwt.MapClaims{"iss": in.GetUser(), "exp": time.Now().Add(TTL).Unix()},
-	).SigningString()
+	).SignedString([]byte("123"))
 	if err != nil {
 		return nil, status.Error(codes.Unknown, err.Error())
 	}
@@ -78,7 +79,7 @@ func (a *API) Login(ctx context.Context, in *keeper.AuthMain) (*keeper.Empty, er
 
 	j, err := jwt.NewWithClaims(jwt.SigningMethodHS256,
 		jwt.MapClaims{"iss": in.GetUser(), "exp": time.Now().Add(TTL).Unix()},
-	).SigningString()
+	).SignedString([]byte("123"))
 	if err != nil {
 		return nil, status.Error(codes.Unknown, err.Error())
 	}
@@ -96,6 +97,24 @@ func (a *API) Logout(ctx context.Context, in *keeper.Empty) (*keeper.Empty, erro
 }
 
 func (a *API) Sync(ctx context.Context, in *keeper.SyncMain) (*keeper.SyncMain, error) {
-
+	u, ok := ctx.Value("iss").(string)
+	if !ok || len(u) == 0 {
+		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+	inKeys := strings.Join(in.GetKeys(), " ")
+	for oldKeys, loaded := a.db.LoadOrStore(u, inKeys); loaded; oldKeys, loaded = a.db.LoadOrStore(u, inKeys) {
+		hash := make(map[string]struct{})
+		for _, s := range append(strings.Fields(oldKeys.(string)), strings.Fields(inKeys)...) {
+			hash[s] = struct{}{}
+		}
+		inKeys = ""
+		for key := range hash {
+			inKeys += " " + key
+		}
+		if a.db.CompareAndSwap(u, oldKeys, inKeys) {
+			break
+		}
+	}
+	in.Keys = strings.Fields(inKeys)
 	return in, nil
 }

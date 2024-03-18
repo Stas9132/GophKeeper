@@ -120,7 +120,8 @@ func (c *Client) Put(flds []string) error {
 	key, data := flds[1], flds[2]
 	c.Lock()
 	defer c.Unlock()
-	info, err := c.s3.PutObject(context.Background(), c.user, key, strings.NewReader(data), int64(len(data)), minio.PutObjectOptions{ContentType: "application/octet-stream"})
+	ctx := metadata.NewOutgoingContext(context.Background(), metadata.Pairs("authorization", c.token))
+	info, err := c.s3.PutObject(ctx, c.user, key, strings.NewReader(data), int64(len(data)), minio.PutObjectOptions{ContentType: "application/octet-stream"})
 	if err != nil {
 		c.Error("PutObject receive: " + err.Error())
 		return err
@@ -166,7 +167,8 @@ func (c *Client) List() ([]string, error) {
 func (c *Client) SyncList() error {
 	c.Lock()
 	defer c.Unlock()
-	s, err := c.Sync(context.Background(), &keeper.SyncMain{Keys: c.storedKeys})
+	ctx := metadata.NewOutgoingContext(context.Background(), metadata.Pairs("authorization", c.token))
+	s, err := c.Sync(ctx, &keeper.SyncMain{Keys: c.storedKeys})
 	if err != nil {
 		return err
 	}

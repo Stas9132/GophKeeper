@@ -11,10 +11,14 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"strings"
 	"sync"
 	"time"
 )
+
+type Keys struct {
+	Name string
+	Type int
+}
 
 type API struct {
 	logger.Logger
@@ -101,20 +105,35 @@ func (a *API) Sync(ctx context.Context, in *keeper.SyncMain) (*keeper.SyncMain, 
 	if !ok || len(u) == 0 {
 		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
 	}
-	inKeys := strings.Join(in.GetKeys(), " ")
+	inKeys := make([]Keys, len(in.GetKeys()))
+	for i, key := range in.GetKeys() {
+		inKeys[i] = Keys{
+			Name: key.GetName(),
+			Type: int(key.GetType()),
+		}
+	}
+	var outKeys []Keys
+
 	for oldKeys, loaded := a.db.LoadOrStore(u, inKeys); loaded; oldKeys, loaded = a.db.LoadOrStore(u, inKeys) {
-		hash := make(map[string]struct{})
-		for _, s := range append(strings.Fields(oldKeys.(string)), strings.Fields(inKeys)...) {
+		hash := make(map[Keys]struct{})
+		for _, s := range append(oldKeys.([]Keys), inKeys...) {
 			hash[s] = struct{}{}
 		}
-		inKeys = ""
+		outKeys = make([]Keys, 0, len(hash))
 		for key := range hash {
-			inKeys += " " + key
+			outKeys = append(outKeys, key)
 		}
+
 		if a.db.CompareAndSwap(u, oldKeys, inKeys) {
 			break
 		}
 	}
-	in.Keys = strings.Fields(inKeys)
+	in.Keys = make([]*keeper.SyncMain_KeysMain, len(outKeys))
+	for i, key := range outKeys {
+		in.Keys[i] = &keeper.SyncMain_KeysMain{
+			Name: key.Name,
+			Type: keeper.SyncMain_TypeCode(key.Type),
+		}
+	}
 	return in, nil
 }

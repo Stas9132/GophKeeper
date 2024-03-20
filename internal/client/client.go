@@ -18,13 +18,18 @@ import (
 	"sync"
 )
 
+type Keys struct {
+	Name string
+	Type int
+}
+
 type Client struct {
 	keeper.KeeperClient
 	logger.Logger
 	user       string
 	token      string
 	s3         Storage
-	storedKeys []string
+	storedKeys []Keys
 	sync.Mutex
 }
 
@@ -117,16 +122,20 @@ func (c *Client) Put(flds []string) error {
 		fmt.Println("usage: put <key> <data>")
 		return ErrInvFormatCommand
 	}
-	key, data := flds[1], flds[2]
+	keyName, data := flds[1], flds[2]
+	key := Keys{
+		Name: keyName,
+		Type: 0,
+	}
 	c.Lock()
 	defer c.Unlock()
 	ctx := metadata.NewOutgoingContext(context.Background(), metadata.Pairs("authorization", c.token))
-	info, err := c.s3.PutObject(ctx, c.user, key, strings.NewReader(data), int64(len(data)), minio.PutObjectOptions{ContentType: "application/octet-stream"})
+	info, err := c.s3.PutObject(ctx, c.user, key.Name, strings.NewReader(data), int64(len(data)), minio.PutObjectOptions{ContentType: "application/octet-stream"})
 	if err != nil {
 		c.Error("PutObject receive: " + err.Error())
 		return err
 	}
-	c.Info("Uploaded " + key + " of size: " + strconv.FormatInt(info.Size, 10) + " succesfully.")
+	c.Info("Uploaded " + key.Name + " of size: " + strconv.FormatInt(info.Size, 10) + " succesfully.")
 	c.storedKeys = append(c.storedKeys, key)
 
 	return nil
@@ -137,17 +146,17 @@ func (c *Client) Get(flds []string) (string, error) {
 		fmt.Println("usage: get <key>")
 		return "", ErrInvFormatCommand
 	}
-	key := flds[1]
+	keyName := flds[1]
 	c.Lock()
 	defer c.Unlock()
 	for _, skey := range c.storedKeys {
-		if key == skey {
+		if keyName == skey.Name {
 			goto keyExist
 		}
 	}
 	return "", ErrObjectNotFound
 keyExist:
-	object, err := c.s3.GetObject(context.Background(), c.user, key, minio.GetObjectOptions{})
+	object, err := c.s3.GetObject(context.Background(), c.user, keyName, minio.GetObjectOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -158,7 +167,7 @@ keyExist:
 	return string(b), nil
 }
 
-func (c *Client) List() ([]string, error) {
+func (c *Client) List() ([]Keys, error) {
 	c.Lock()
 	defer c.Unlock()
 	return c.storedKeys, nil
@@ -168,10 +177,23 @@ func (c *Client) SyncList() error {
 	c.Lock()
 	defer c.Unlock()
 	ctx := metadata.NewOutgoingContext(context.Background(), metadata.Pairs("authorization", c.token))
-	s, err := c.Sync(ctx, &keeper.SyncMain{Keys: c.storedKeys})
+	keys := make([]*keeper.SyncMain_KeysMain, len(c.storedKeys))
+	for i, skey := range c.storedKeys {
+		keys[i] = &keeper.SyncMain_KeysMain{
+			Name: skey.Name,
+			Type: keeper.SyncMain_TypeCode(skey.Type),
+		}
+	}
+	s, err := c.Sync(ctx, &keeper.SyncMain{Keys: keys})
 	if err != nil {
 		return err
 	}
-	c.storedKeys = s.GetKeys()
+	c.storedKeys = make([]Keys, len(s.GetKeys()))
+	for i, key := range s.GetKeys() {
+		c.storedKeys[i] = Keys{
+			Name: key.GetName(),
+			Type: int(key.GetType()),
+		}
+	}
 	return nil
 }

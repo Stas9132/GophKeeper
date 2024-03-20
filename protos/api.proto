@@ -52,5 +52,14 @@ message AuthMain {
 }
 
 message SyncMain {
-  repeated string Keys = 1;
+  message KeysMain{
+    string Name = 1;
+    TypeCode Type = 2;
+  }
+  enum TypeCode {
+    TYPE_NIL = 0;
+  }
+  repeated KeysMain Keys = 1;
 }
+
+

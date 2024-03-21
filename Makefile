@@ -4,12 +4,12 @@ hello:
 	echo "Hello"
 
 build:
-	GOARCH=amd64 GOOS=darwin go build -o ${BINARY_NAME}-darwin-server cmd/server/main.go
-	GOARCH=amd64 GOOS=darwin go build -o ${BINARY_NAME}-darwin-client cmd/client/main.go
-	GOARCH=amd64 GOOS=linux go build -o ${BINARY_NAME}-linux-server cmd/server/main.go
-	GOARCH=amd64 GOOS=linux go build -o ${BINARY_NAME}-linux-client cmd/client/main.go
-	GOARCH=amd64 GOOS=windows go build -o ${BINARY_NAME}-windows-server cmd/server/main.go
-	GOARCH=amd64 GOOS=windows go build -o ${BINARY_NAME}-windows-client cmd/client/main.go
+	GOARCH=amd64 GOOS=darwin go build -o ${BINARY_NAME}-darwin-server cmd/server/server.go
+	GOARCH=amd64 GOOS=darwin go build -o ${BINARY_NAME}-darwin-client cmd/client/client.go
+	GOARCH=amd64 GOOS=linux go build -o ${BINARY_NAME}-linux-server cmd/server/server.go
+	GOARCH=amd64 GOOS=linux go build -o ${BINARY_NAME}-linux-client cmd/client/client.go
+	GOARCH=amd64 GOOS=windows go build -o ${BINARY_NAME}-windows-server cmd/server/server.go
+	GOARCH=amd64 GOOS=windows go build -o ${BINARY_NAME}-windows-client cmd/client/client.go
 
 clean:
 	go clean

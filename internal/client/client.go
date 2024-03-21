@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"io"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -118,19 +119,51 @@ func (c *Client) Logout() error {
 }
 
 func (c *Client) Put(flds []string) error {
-	if len(flds) != 3 {
-		fmt.Println("usage: put <key> <data>")
+	if len(flds) != 4 {
+		fmt.Println("usage: put <key> <type> <data>")
 		return ErrInvFormatCommand
 	}
-	keyName, data := flds[1], flds[2]
+	keyName, data := flds[1], flds[3]
+	Type, _ := strconv.Atoi(flds[2])
+	var dataReader io.Reader
+	var dataLen int64
+	switch keeper.SyncMain_TypeCode(Type) {
+	case keeper.SyncMain_TYPE_LP:
+		dataReader = strings.NewReader(data)
+		dataLen = int64(len(data))
+	case keeper.SyncMain_TYPE_TEXT:
+		dataReader = strings.NewReader(data)
+		dataLen = int64(len(data))
+	case keeper.SyncMain_TYPE_BIN:
+		f, err := os.Open(data)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		fst, err := f.Stat()
+		if err != nil {
+			return err
+		}
+		dataLen = fst.Size()
+	case keeper.SyncMain_TYPE_CARD:
+		dataReader = strings.NewReader(data)
+		dataLen = int64(len(data))
+	default:
+		fmt.Println("Types:")
+		fmt.Println("	1:Login/Password")
+		fmt.Println("	2:Text")
+		fmt.Println("	3:Binary file")
+		fmt.Println("	4:Bank's Card")
+		return ErrInvFormatCommand
+	}
 	key := Keys{
 		Name: keyName,
-		Type: 0,
+		Type: Type,
 	}
 	c.Lock()
 	defer c.Unlock()
 	ctx := metadata.NewOutgoingContext(context.Background(), metadata.Pairs("authorization", c.token))
-	info, err := c.s3.PutObject(ctx, c.user, key.Name, strings.NewReader(data), int64(len(data)), minio.PutObjectOptions{ContentType: "application/octet-stream"})
+	info, err := c.s3.PutObject(ctx, c.user, key.Name, dataReader, dataLen, minio.PutObjectOptions{ContentType: "application/octet-stream"})
 	if err != nil {
 		c.Error("PutObject receive: " + err.Error())
 		return err

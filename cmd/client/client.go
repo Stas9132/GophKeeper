@@ -65,7 +65,7 @@ func shell(l logger.Logger) {
 				continue
 			}
 			for i, key := range keys {
-				fmt.Println(i, key)
+				fmt.Println(i, ":", key)
 			}
 		case "sync":
 			if err = cl.SyncList(); err != nil {

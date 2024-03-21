@@ -15,16 +15,17 @@ import (
 	"time"
 )
 
-type Keys struct {
+type Key struct {
 	Name string
 	Type int
 }
 
 type API struct {
+	sync.Mutex
 	logger.Logger
 	keeper.UnimplementedKeeperServer
 	storage Storage
-	db      *sync.Map
+	db      map[string][]Key
 }
 
 type Storage interface {
@@ -41,7 +42,7 @@ func NewAPI(logger logger.Logger) (*API, error) {
 	return &API{
 		Logger:  logger,
 		storage: s3,
-		db:      &sync.Map{},
+		db:      make(map[string][]Key),
 	}, nil
 }
 
@@ -101,33 +102,31 @@ func (a *API) Logout(ctx context.Context, in *keeper.Empty) (*keeper.Empty, erro
 }
 
 func (a *API) Sync(ctx context.Context, in *keeper.SyncMain) (*keeper.SyncMain, error) {
+	a.Lock()
+	defer a.Unlock()
 	u, ok := ctx.Value("iss").(string)
 	if !ok || len(u) == 0 {
 		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
 	}
-	inKeys := make([]Keys, len(in.GetKeys()))
+	inKeys := make([]Key, len(in.GetKeys()))
 	for i, key := range in.GetKeys() {
-		inKeys[i] = Keys{
+		inKeys[i] = Key{
 			Name: key.GetName(),
 			Type: int(key.GetType()),
 		}
 	}
-	var outKeys []Keys
-
-	for oldKeys, loaded := a.db.LoadOrStore(u, inKeys); loaded; oldKeys, loaded = a.db.LoadOrStore(u, inKeys) {
-		hash := make(map[Keys]struct{})
-		for _, s := range append(oldKeys.([]Keys), inKeys...) {
-			hash[s] = struct{}{}
-		}
-		outKeys = make([]Keys, 0, len(hash))
-		for key := range hash {
-			outKeys = append(outKeys, key)
-		}
-
-		if a.db.CompareAndSwap(u, oldKeys, inKeys) {
-			break
-		}
+	var outKeys []Key
+	oldKeys := a.db[u]
+	hash := make(map[Key]struct{})
+	for _, s := range append(oldKeys, inKeys...) {
+		hash[s] = struct{}{}
 	}
+	outKeys = make([]Key, 0, len(hash))
+	for key := range hash {
+		outKeys = append(outKeys, key)
+	}
+	a.db[u] = outKeys
+
 	in.Keys = make([]*keeper.SyncMain_KeysMain, len(outKeys))
 	for i, key := range outKeys {
 		in.Keys[i] = &keeper.SyncMain_KeysMain{

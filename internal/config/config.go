@@ -19,3 +19,11 @@ func Init() {
 
 	PrintVersion = *b
 }
+
+var (
+	S3Endpoint        = "127.0.0.1:9000"
+	S3AccessKeyID     = "aHLytUVhTKOPMYD6nYA2"
+	S3SecretAccessKey = "F2Avh18pul7X8IsGhCTeWPnaQNhlOuda3iAYSO30"
+	S3UseSSL          = false
+	S3Location        = "us-east-1"
+)

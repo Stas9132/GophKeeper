@@ -6,16 +6,10 @@ import (
 	"crypto/md5"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	"github.com/stas9132/GophKeeper/internal/config"
 	"github.com/stas9132/GophKeeper/internal/logger"
 	"io"
 	"log"
-)
-
-const (
-	endpoint        = "127.0.0.1:9000"
-	accessKeyID     = "aHLytUVhTKOPMYD6nYA2"
-	secretAccessKey = "F2Avh18pul7X8IsGhCTeWPnaQNhlOuda3iAYSO30"
-	useSSL          = false
 )
 
 type S3 struct {
@@ -24,14 +18,14 @@ type S3 struct {
 }
 
 func NewS3(l logger.Logger) (*S3, error) {
-	minioClient, err := minio.New(endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(accessKeyID, secretAccessKey, ""),
-		Secure: useSSL,
+	minioClient, err := minio.New(config.S3Endpoint, &minio.Options{
+		Creds:  credentials.NewStaticV4(config.S3AccessKeyID, config.S3SecretAccessKey, ""),
+		Secure: config.S3UseSSL,
 	})
 	if err != nil {
 		return nil, err
 	}
-	err = minioClient.MakeBucket(context.TODO(), authBucketName, minio.MakeBucketOptions{Region: location})
+	err = minioClient.MakeBucket(context.TODO(), authBucketName, minio.MakeBucketOptions{Region: config.S3Location})
 	if err != nil {
 		// Check to see if we already own this bucket (which happens if you run this twice)
 		exists, errBucketExists := minioClient.BucketExists(context.TODO(), authBucketName)
@@ -47,11 +41,10 @@ func NewS3(l logger.Logger) (*S3, error) {
 
 const (
 	authBucketName = "auth-bucket"
-	location       = "us-east-1"
 )
 
 func (s *S3) Register(ctx context.Context, user, password string) (bool, error) {
-	if err := s.MakeBucket(ctx, user, minio.MakeBucketOptions{Region: location, ObjectLocking: true}); err != nil {
+	if err := s.MakeBucket(ctx, user, minio.MakeBucketOptions{Region: config.S3Location, ObjectLocking: true}); err != nil {
 		return false, err
 	}
 	hash := md5.Sum([]byte(password))

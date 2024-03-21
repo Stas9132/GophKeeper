@@ -16,7 +16,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 )
 
 type Keys struct {
@@ -31,7 +30,6 @@ type Client struct {
 	token      string
 	s3         Storage
 	storedKeys []Keys
-	sync.Mutex
 }
 
 type Storage interface {
@@ -160,8 +158,6 @@ func (c *Client) Put(flds []string) error {
 		Name: keyName,
 		Type: Type,
 	}
-	c.Lock()
-	defer c.Unlock()
 	ctx := metadata.NewOutgoingContext(context.Background(), metadata.Pairs("authorization", c.token))
 	info, err := c.s3.PutObject(ctx, c.user, key.Name, dataReader, dataLen, minio.PutObjectOptions{ContentType: "application/octet-stream"})
 	if err != nil {
@@ -180,8 +176,6 @@ func (c *Client) Get(flds []string) (string, error) {
 		return "", ErrInvFormatCommand
 	}
 	keyName := flds[1]
-	c.Lock()
-	defer c.Unlock()
 	for _, skey := range c.storedKeys {
 		if keyName == skey.Name {
 			goto keyExist
@@ -201,14 +195,10 @@ keyExist:
 }
 
 func (c *Client) List() ([]Keys, error) {
-	c.Lock()
-	defer c.Unlock()
 	return c.storedKeys, nil
 }
 
 func (c *Client) SyncList() error {
-	c.Lock()
-	defer c.Unlock()
 	ctx := metadata.NewOutgoingContext(context.Background(), metadata.Pairs("authorization", c.token))
 	keys := make([]*keeper.SyncMain_KeysMain, len(c.storedKeys))
 	for i, skey := range c.storedKeys {

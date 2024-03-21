@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	r2 "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
@@ -10,6 +11,7 @@ import (
 	"github.com/stas9132/GophKeeper/internal/server/auth"
 	"github.com/stas9132/GophKeeper/keeper"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
 
@@ -26,6 +28,22 @@ import (
 
 var ll *slog.Logger
 
+func loadTLSCredentials() (credentials.TransportCredentials, error) {
+	// Load server's certificate and private key
+	serverCert, err := tls.LoadX509KeyPair("server-cert.pem", "server-key.pem")
+	if err != nil {
+		return nil, err
+	}
+
+	// Create the credentials and return it
+	config := &tls.Config{
+		Certificates: []tls.Certificate{serverCert},
+		ClientAuth:   tls.NoClientCert,
+	}
+
+	return credentials.NewTLS(config), nil
+}
+
 func run(ctx context.Context) <-chan error {
 
 	interceptorLogger := func(l *slog.Logger) logging.Logger {
@@ -36,11 +54,17 @@ func run(ctx context.Context) <-chan error {
 
 	res := make(chan error, 1)
 	time.AfterFunc(100*time.Millisecond, func() {
-		s := grpc.NewServer(grpc.ChainUnaryInterceptor(
-			logging.UnaryServerInterceptor(interceptorLogger(ll),
-				[]logging.Option{logging.WithLogOnEvents(logging.StartCall, logging.FinishCall)}...),
-			auth.UnaryServerInterceptor(ll),
-		))
+		tlsCredentials, err := loadTLSCredentials()
+		if err != nil {
+			log.Fatal("cannot load TLS credentials: ", err)
+		}
+		s := grpc.NewServer(
+			grpc.Creds(tlsCredentials),
+			grpc.ChainUnaryInterceptor(
+				logging.UnaryServerInterceptor(
+					interceptorLogger(ll), []logging.Option{logging.WithLogOnEvents(logging.StartCall, logging.FinishCall)}...),
+				auth.UnaryServerInterceptor(ll),
+			))
 		wg := sync.WaitGroup{}
 		wg.Add(1)
 		go func() {

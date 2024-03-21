@@ -10,7 +10,7 @@ import (
 	"github.com/stas9132/GophKeeper/internal/storage"
 	"github.com/stas9132/GophKeeper/keeper"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 	"io"
 	"os"
@@ -42,12 +42,12 @@ type Storage interface {
 var ErrInvFormatCommand = errors.New("invalid format command")
 var ErrObjectNotFound = errors.New("object not found")
 
-func NewClient(l logger.Logger) (*Client, error) {
+func NewClient(l logger.Logger, tlsCred credentials.TransportCredentials) (*Client, error) {
 	s3, err := storage.NewS3(l)
 	if err != nil {
 		return nil, err
 	}
-	con, err := grpc.Dial(config.ListenAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	con, err := grpc.Dial(config.ListenAddress, grpc.WithTransportCredentials(tlsCred))
 	if err != nil {
 		return nil, err
 	}

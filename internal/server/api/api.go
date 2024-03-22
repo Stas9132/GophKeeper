@@ -131,7 +131,7 @@ func (a *API) Sync(ctx context.Context, in *keeper.SyncMain) (*keeper.SyncMain, 
 	for i, key := range outKeys {
 		in.Keys[i] = &keeper.SyncMain_KeysMain{
 			Name: key.Name,
-			Type: keeper.SyncMain_TypeCode(key.Type),
+			Type: keeper.TypeCode(key.Type),
 		}
 	}
 	return in, nil

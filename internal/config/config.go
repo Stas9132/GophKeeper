@@ -1,6 +1,9 @@
 package config
 
-import "flag"
+import (
+	"encoding/hex"
+	"flag"
+)
 
 var (
 	Version   = "1.0.0"
@@ -26,4 +29,6 @@ var (
 	S3SecretAccessKey = "F2Avh18pul7X8IsGhCTeWPnaQNhlOuda3iAYSO30"
 	S3UseSSL          = false
 	S3Location        = "us-east-1"
+	AESKey            = []byte("AES256Key-32Characters1234567890")
+	AESnonce, _       = hex.DecodeString("bb8ef84243d2ee95a41c6c57")
 )

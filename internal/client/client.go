@@ -2,6 +2,8 @@ package client
 
 import (
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
 	"errors"
 	"fmt"
 	"github.com/minio/minio-go/v7"
@@ -125,14 +127,14 @@ func (c *Client) Put(flds []string) error {
 	Type, _ := strconv.Atoi(flds[2])
 	var dataReader io.Reader
 	var dataLen int64
-	switch keeper.SyncMain_TypeCode(Type) {
-	case keeper.SyncMain_TYPE_LP:
+	switch keeper.TypeCode(Type) {
+	case keeper.TypeCode_TYPE_LP:
 		dataReader = strings.NewReader(data)
 		dataLen = int64(len(data))
-	case keeper.SyncMain_TYPE_TEXT:
+	case keeper.TypeCode_TYPE_TEXT:
 		dataReader = strings.NewReader(data)
 		dataLen = int64(len(data))
-	case keeper.SyncMain_TYPE_BIN:
+	case keeper.TypeCode_TYPE_BIN:
 		f, err := os.Open(data)
 		if err != nil {
 			return err
@@ -143,7 +145,7 @@ func (c *Client) Put(flds []string) error {
 			return err
 		}
 		dataLen = fst.Size()
-	case keeper.SyncMain_TYPE_CARD:
+	case keeper.TypeCode_TYPE_CARD:
 		dataReader = strings.NewReader(data)
 		dataLen = int64(len(data))
 	default:
@@ -158,13 +160,29 @@ func (c *Client) Put(flds []string) error {
 		Name: keyName,
 		Type: Type,
 	}
-	ctx := metadata.NewOutgoingContext(context.Background(), metadata.Pairs("authorization", c.token))
-	info, err := c.s3.PutObject(ctx, c.user, key.Name, dataReader, dataLen, minio.PutObjectOptions{ContentType: "application/octet-stream"})
+	block, err := aes.NewCipher(config.AESKey)
 	if err != nil {
-		c.Error("PutObject receive: " + err.Error())
 		return err
 	}
-	c.Info("Uploaded " + key.Name + " of size: " + strconv.FormatInt(info.Size, 10) + " succesfully.")
+	aesgcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return err
+	}
+	bytes, err := io.ReadAll(dataReader)
+	if err != nil {
+		return err
+	}
+	bytes = aesgcm.Seal(nil, config.AESnonce, bytes, nil)
+
+	ctx := metadata.NewOutgoingContext(context.Background(), metadata.Pairs("authorization", c.token))
+	_, err = c.KeeperClient.Put(ctx, &keeper.ObjMain{
+		Type:    keeper.TypeCode(key.Type),
+		EncData: bytes,
+	})
+	if err != nil {
+		return err
+	}
+	c.Info("Uploaded " + key.Name + " of size: " + strconv.FormatInt(dataLen, 10) + " succesfully.")
 	c.storedKeys = append(c.storedKeys, key)
 
 	return nil
@@ -204,7 +222,7 @@ func (c *Client) SyncList() error {
 	for i, skey := range c.storedKeys {
 		keys[i] = &keeper.SyncMain_KeysMain{
 			Name: skey.Name,
-			Type: keeper.SyncMain_TypeCode(skey.Type),
+			Type: keeper.TypeCode(skey.Type),
 		}
 	}
 	s, err := c.Sync(ctx, &keeper.SyncMain{Keys: keys})

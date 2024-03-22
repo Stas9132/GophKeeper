@@ -29,6 +29,21 @@ service keeper {
       body: "*"
     };
   }
+
+  rpc Put (ObjMain) returns(Empty){
+    option (google.api.http) = {
+      post: "/put"
+      body: "*"
+    };
+  }
+
+  rpc Get (ObjMain) returns(ObjMain){
+    option (google.api.http) = {
+      post: "/get"
+      body: "*"
+    };
+  }
+
   rpc Sync(SyncMain) returns(SyncMain){
     option (google.api.http) = {
       post: "/sync"
@@ -51,17 +66,25 @@ message AuthMain {
   string Password = 2;
 }
 
+message ObjMain {
+  string Name = 1;
+  TypeCode Type = 2;
+  bytes EncData = 3;
+  string s3Link = 4;
+}
+
+enum TypeCode {
+  TYPE_NIL = 0;
+  TYPE_LP = 1;
+  TYPE_TEXT = 2;
+  TYPE_BIN=3;
+  TYPE_CARD=4;
+}
+
 message SyncMain {
   message KeysMain{
     string Name = 1;
     TypeCode Type = 2;
-  }
-  enum TypeCode {
-    TYPE_NIL = 0;
-    TYPE_LP = 1;
-    TYPE_TEXT = 2;
-    TYPE_BIN=3;
-    TYPE_CARD=4;
   }
   repeated KeysMain Keys = 1;
 }

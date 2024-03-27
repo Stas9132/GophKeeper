@@ -3,6 +3,8 @@ package config
 import (
 	"encoding/hex"
 	"flag"
+	"log"
+	"os"
 )
 
 var (
@@ -21,6 +23,38 @@ func Init() {
 	flag.Parse()
 
 	PrintVersion = *b
+
+	if s, ok := os.LookupEnv("LISTEN_ADDRESS"); ok {
+		ListenAddress = s
+	}
+	if s, ok := os.LookupEnv("LISTEN_ADDRESS_REST"); ok {
+		ListenAddressR = s
+	}
+	if s, ok := os.LookupEnv("S3_ENDPOINT"); ok {
+		S3Endpoint = s
+	}
+	if s, ok := os.LookupEnv("S3_ACCESS_KEY"); ok {
+		S3AccessKeyID = s
+	}
+	if s, ok := os.LookupEnv("S3_SECRET_KEY"); ok {
+		S3SecretAccessKey = s
+	}
+	if s, ok := os.LookupEnv("S3_USE_SSL"); ok {
+		S3UseSSL = s == "YES"
+	}
+	if s, ok := os.LookupEnv("S3_LOCATION"); ok {
+		S3Location = s
+	}
+	if s, ok := os.LookupEnv("AES_KEY"); ok {
+		AESKey = []byte(s)
+	}
+	if s, ok := os.LookupEnv("AES_NOONCE"); ok {
+		var err error
+		AESnonce, err = hex.DecodeString(s)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 }
 
 var (

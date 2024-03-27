@@ -28,10 +28,9 @@ type Keys struct {
 type Client struct {
 	keeper.KeeperClient
 	logger.Logger
-	user       string
-	token      string
-	s3         Storage
-	storedKeys []Keys
+	user  string
+	token string
+	s3    Storage
 }
 
 type Storage interface {
@@ -39,7 +38,6 @@ type Storage interface {
 }
 
 var ErrInvFormatCommand = errors.New("invalid format command")
-var ErrObjectNotFound = errors.New("object not found")
 
 func NewClient(l logger.Logger, tlsCred credentials.TransportCredentials) (*Client, error) {
 	s3, err := storage.NewS3(l)
@@ -183,7 +181,6 @@ func (c *Client) Put(flds []string) error {
 		return err
 	}
 	c.Info("Uploaded " + key.Name + " of size: " + strconv.FormatInt(dataLen, 10) + " succesfully.")
-	c.storedKeys = append(c.storedKeys, key)
 
 	return nil
 }
@@ -225,31 +222,4 @@ func (c *Client) Get(flds []string) (string, error) {
 	out.GetType().String()
 
 	return out.GetType().String() + ": " + string(bytes), nil
-}
-
-func (c *Client) List() ([]Keys, error) {
-	return c.storedKeys, nil
-}
-
-func (c *Client) SyncList() error {
-	ctx := metadata.NewOutgoingContext(context.Background(), metadata.Pairs("authorization", c.token))
-	keys := make([]*keeper.SyncMain_KeysMain, len(c.storedKeys))
-	for i, skey := range c.storedKeys {
-		keys[i] = &keeper.SyncMain_KeysMain{
-			Name: skey.Name,
-			Type: keeper.TypeCode(skey.Type),
-		}
-	}
-	s, err := c.Sync(ctx, &keeper.SyncMain{Keys: keys})
-	if err != nil {
-		return err
-	}
-	c.storedKeys = make([]Keys, len(s.GetKeys()))
-	for i, key := range s.GetKeys() {
-		c.storedKeys[i] = Keys{
-			Name: key.GetName(),
-			Type: int(key.GetType()),
-		}
-	}
-	return nil
 }

@@ -87,22 +87,8 @@ func shell(l logger.Logger) {
 				continue
 			}
 			fmt.Println(data)
-		case "list":
-			keys, err := cl.List()
-			if err != nil {
-				fmt.Println(err)
-				continue
-			}
-			for i, key := range keys {
-				fmt.Println(i, ":", key)
-			}
-		case "sync":
-			if err = cl.SyncList(); err != nil {
-				fmt.Println(err)
-				continue
-			}
 		case "help":
-			fmt.Println("Valid commands:\nregister\nlogin\nlogout\nhealth\nput\nget\nsync\nexit")
+			fmt.Println("Valid commands:\nregister\nlogin\nlogout\nhealth\nput\nget\nexit")
 		default:
 			fmt.Println("unknown command")
 			continue

@@ -15,7 +15,6 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"io"
-	"log"
 	"sync"
 	"time"
 )
@@ -132,7 +131,7 @@ lunlock:
 	if err != nil {
 		return nil, status.Error(codes.Unknown, err.Error())
 	}
-	log.Println(u, info)
+	a.Info(info.Bucket + ":" + info.Key + " stored in s3")
 	return &keeper.Empty{}, nil
 }
 func (a *API) Get(ctx context.Context, in *keeper.ObjMain) (*keeper.ObjMain, error) {
@@ -154,7 +153,14 @@ func (a *API) Get(ctx context.Context, in *keeper.ObjMain) (*keeper.ObjMain, err
 lunlock:
 	a.Unlock()
 
+	errMsg := "noerror"
+	if retErr != nil {
+		errMsg = retErr.Error()
+	}
+	a.Info("find " + in.GetName() + ": " + errMsg)
+
 	in.S3Link = id.u
+	in.Type = keeper.TypeCode(id.Type)
 	return in, retErr
 }
 

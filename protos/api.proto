@@ -75,7 +75,7 @@ message ObjMain {
 
 enum TypeCode {
   TYPE_NIL = 0;
-  TYPE_LP = 1;
+  TYPE_LOGIN_PASSWORD = 1;
   TYPE_TEXT = 2;
   TYPE_BIN=3;
   TYPE_CARD=4;

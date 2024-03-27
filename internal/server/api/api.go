@@ -1,8 +1,11 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+	"github.com/minio/minio-go/v7"
 	"github.com/stas9132/GophKeeper/internal/config"
 	"github.com/stas9132/GophKeeper/internal/logger"
 	"github.com/stas9132/GophKeeper/internal/storage"
@@ -11,6 +14,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"io"
+	"log"
 	"sync"
 	"time"
 )
@@ -18,6 +23,7 @@ import (
 type Key struct {
 	Name string
 	Type int
+	u    string
 }
 
 type API struct {
@@ -32,6 +38,7 @@ type Storage interface {
 	Register(ctx context.Context, user, password string) (bool, error)
 	Login(ctx context.Context, user, password string) (bool, error)
 	Logout(ctx context.Context) (bool, error)
+	PutObject(ctx context.Context, bucketName, objectName string, reader io.Reader, objectSize int64, opts minio.PutObjectOptions) (info minio.UploadInfo, err error)
 }
 
 func NewAPI(logger logger.Logger) (*API, error) {
@@ -99,6 +106,56 @@ func (a *API) Logout(ctx context.Context, in *keeper.Empty) (*keeper.Empty, erro
 		return nil, status.Error(codes.Unknown, err.Error())
 	}
 	return &keeper.Empty{}, nil
+}
+
+func (a *API) Put(ctx context.Context, in *keeper.ObjMain) (*keeper.Empty, error) {
+	iss, ok := ctx.Value("iss").(string)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+
+	a.Lock()
+	ids := a.db[iss]
+	var u string
+	for _, id := range ids {
+		if id.Name == in.GetName() {
+			u = id.u
+			goto lunlock
+		}
+	}
+	u = uuid.NewString()
+	a.db[iss] = append(ids, Key{Name: in.GetName(), Type: int(in.GetType()), u: u})
+lunlock:
+	a.Unlock()
+
+	info, err := a.storage.PutObject(ctx, iss, u, bytes.NewReader(in.GetEncData()), int64(len(in.GetEncData())), minio.PutObjectOptions{ContentType: "application/octet-stream"})
+	if err != nil {
+		return nil, status.Error(codes.Unknown, err.Error())
+	}
+	log.Println(u, info)
+	return &keeper.Empty{}, nil
+}
+func (a *API) Get(ctx context.Context, in *keeper.ObjMain) (*keeper.ObjMain, error) {
+	iss, ok := ctx.Value("iss").(string)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+
+	a.Lock()
+	var retErr error
+	var id Key
+	ids := a.db[iss]
+	for _, id = range ids {
+		if id.Name == in.GetName() {
+			goto lunlock
+		}
+	}
+	retErr = status.Error(codes.Unknown, "not found")
+lunlock:
+	a.Unlock()
+
+	in.S3Link = id.u
+	return in, retErr
 }
 
 func (a *API) Sync(ctx context.Context, in *keeper.SyncMain) (*keeper.SyncMain, error) {

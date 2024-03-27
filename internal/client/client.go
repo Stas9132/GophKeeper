@@ -35,7 +35,6 @@ type Client struct {
 }
 
 type Storage interface {
-	PutObject(ctx context.Context, bucketName, objectName string, reader io.Reader, objectSize int64, opts minio.PutObjectOptions) (info minio.UploadInfo, err error)
 	GetObject(ctx context.Context, bucketName, objectName string, opts minio.GetObjectOptions) (*minio.Object, error)
 }
 
@@ -128,7 +127,7 @@ func (c *Client) Put(flds []string) error {
 	var dataReader io.Reader
 	var dataLen int64
 	switch keeper.TypeCode(Type) {
-	case keeper.TypeCode_TYPE_LP:
+	case keeper.TypeCode_TYPE_LOGIN_PASSWORD:
 		dataReader = strings.NewReader(data)
 		dataLen = int64(len(data))
 	case keeper.TypeCode_TYPE_TEXT:
@@ -176,6 +175,7 @@ func (c *Client) Put(flds []string) error {
 
 	ctx := metadata.NewOutgoingContext(context.Background(), metadata.Pairs("authorization", c.token))
 	_, err = c.KeeperClient.Put(ctx, &keeper.ObjMain{
+		Name:    key.Name,
 		Type:    keeper.TypeCode(key.Type),
 		EncData: bytes,
 	})
@@ -194,22 +194,37 @@ func (c *Client) Get(flds []string) (string, error) {
 		return "", ErrInvFormatCommand
 	}
 	keyName := flds[1]
-	for _, skey := range c.storedKeys {
-		if keyName == skey.Name {
-			goto keyExist
-		}
-	}
-	return "", ErrObjectNotFound
-keyExist:
-	object, err := c.s3.GetObject(context.Background(), c.user, keyName, minio.GetObjectOptions{})
+	ctx := metadata.NewOutgoingContext(context.Background(), metadata.Pairs("authorization", c.token))
+	out, err := c.KeeperClient.Get(ctx, &keeper.ObjMain{
+		Name: keyName,
+	})
 	if err != nil {
 		return "", err
 	}
-	b, err := io.ReadAll(object)
+
+	object, err := c.s3.GetObject(ctx, c.user, out.S3Link, minio.GetObjectOptions{})
 	if err != nil {
 		return "", err
 	}
-	return string(b), nil
+	bytes, err := io.ReadAll(object)
+	if err != nil {
+		return "", err
+	}
+	block, err := aes.NewCipher(config.AESKey)
+	if err != nil {
+		return "", err
+	}
+	aesgcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+	bytes, err = aesgcm.Open(nil, config.AESnonce, bytes, nil)
+	if err != nil {
+		return "", err
+	}
+	out.GetType().String()
+
+	return out.GetType().String() + ": " + string(bytes), nil
 }
 
 func (c *Client) List() ([]Keys, error) {

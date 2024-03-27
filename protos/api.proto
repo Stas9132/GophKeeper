@@ -11,7 +11,47 @@ service keeper {
       get: "/health"
     };
   }
+  rpc Register(AuthMain) returns(Empty) {
+    option (google.api.http) = {
+      post: "/register"
+      body: "*"
+    };
+  }
+  rpc Login(AuthMain) returns(Empty) {
+    option (google.api.http) = {
+      post: "/login"
+      body: "*"
+    };
+  }
+  rpc Logout(Empty) returns(Empty) {
+    option (google.api.http) = {
+      post: "/logout"
+      body: "*"
+    };
+  }
+
+  rpc Put (ObjMain) returns(Empty){
+    option (google.api.http) = {
+      post: "/put"
+      body: "*"
+    };
+  }
+
+  rpc Get (ObjMain) returns(ObjMain){
+    option (google.api.http) = {
+      post: "/get"
+      body: "*"
+    };
+  }
+
+  rpc Sync(SyncMain) returns(SyncMain){
+    option (google.api.http) = {
+      post: "/sync"
+      body: "*"
+    };
+  }
 }
+
 
 message Empty{}
 
@@ -20,4 +60,33 @@ message HealthMain {
   string Version = 2;
   string Message = 3;
 }
+
+message AuthMain {
+  string User = 1;
+  string Password = 2;
+}
+
+message ObjMain {
+  string Name = 1;
+  TypeCode Type = 2;
+  bytes EncData = 3;
+  string s3Link = 4;
+}
+
+enum TypeCode {
+  TYPE_NIL = 0;
+  TYPE_LOGIN_PASSWORD = 1;
+  TYPE_TEXT = 2;
+  TYPE_BIN=3;
+  TYPE_CARD=4;
+}
+
+message SyncMain {
+  message KeysMain{
+    string Name = 1;
+    TypeCode Type = 2;
+  }
+  repeated KeysMain Keys = 1;
+}
+
 

@@ -66,3 +66,7 @@ var (
 	AESKey            = []byte("AES256Key-32Characters1234567890")
 	AESnonce, _       = hex.DecodeString("bb8ef84243d2ee95a41c6c57")
 )
+
+var (
+	JwtKey = []byte("123")
+)

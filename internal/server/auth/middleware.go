@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/stas9132/GophKeeper/internal/config"
 	"github.com/stas9132/GophKeeper/internal/logger"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -40,7 +41,7 @@ func interceptor(logger logger.Logger) grpc.UnaryServerInterceptor {
 			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, errors.New("unexpected signed method")
 			}
-			return []byte("123"), nil
+			return config.JwtKey, nil
 		})
 		if err != nil {
 			return nil, status.Errorf(codes.Unauthenticated, err.Error())

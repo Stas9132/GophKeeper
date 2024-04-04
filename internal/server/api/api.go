@@ -71,7 +71,7 @@ func (a *API) Register(ctx context.Context, in *keeper.AuthMain) (*keeper.Empty,
 
 	j, err := jwt.NewWithClaims(jwt.SigningMethodHS256,
 		jwt.MapClaims{"iss": in.GetUser(), "exp": time.Now().Add(TTL).Unix()},
-	).SignedString([]byte("123"))
+	).SignedString(config.JwtKey)
 	if err != nil {
 		return nil, status.Error(codes.Unknown, err.Error())
 	}
@@ -90,7 +90,7 @@ func (a *API) Login(ctx context.Context, in *keeper.AuthMain) (*keeper.Empty, er
 
 	j, err := jwt.NewWithClaims(jwt.SigningMethodHS256,
 		jwt.MapClaims{"iss": in.GetUser(), "exp": time.Now().Add(TTL).Unix()},
-	).SignedString([]byte("123"))
+	).SignedString(config.JwtKey)
 	if err != nil {
 		return nil, status.Error(codes.Unknown, err.Error())
 	}

@@ -55,6 +55,9 @@ func Init() {
 			log.Fatal(err)
 		}
 	}
+	if s, ok := os.LookupEnv("DATABASE_DSN"); ok {
+		DatabaseDSN = s
+	}
 }
 
 var (
@@ -69,4 +72,8 @@ var (
 
 var (
 	JwtKey = []byte("123")
+)
+
+var (
+	DatabaseDSN = ""
 )

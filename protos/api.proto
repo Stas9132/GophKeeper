@@ -43,13 +43,6 @@ service keeper {
       body: "*"
     };
   }
-
-  rpc Sync(SyncMain) returns(SyncMain){
-    option (google.api.http) = {
-      post: "/sync"
-      body: "*"
-    };
-  }
 }
 
 

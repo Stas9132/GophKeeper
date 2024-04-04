@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"context"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 	"github.com/minio/minio-go/v7"
 	"github.com/stas9132/GophKeeper/internal/config"
 	"github.com/stas9132/GophKeeper/internal/logger"
+	"github.com/stas9132/GophKeeper/internal/server/db"
 	"github.com/stas9132/GophKeeper/internal/storage"
 	"github.com/stas9132/GophKeeper/keeper"
 	"google.golang.org/grpc"
@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"io"
+	"log"
 	"sync"
 	"time"
 )
@@ -30,14 +31,17 @@ type API struct {
 	logger.Logger
 	keeper.UnimplementedKeeperServer
 	s3 S3
-	db map[string][]Key
+	db DB
 }
 
 type S3 interface {
+	PutObject(ctx context.Context, bucketName, objectName string, reader io.Reader, objectSize int64, opts minio.PutObjectOptions) (info minio.UploadInfo, err error)
+}
+
+type DB interface {
 	Register(ctx context.Context, user, password string) (bool, error)
 	Login(ctx context.Context, user, password string) (bool, error)
 	Logout(ctx context.Context) (bool, error)
-	PutObject(ctx context.Context, bucketName, objectName string, reader io.Reader, objectSize int64, opts minio.PutObjectOptions) (info minio.UploadInfo, err error)
 }
 
 func NewAPI(logger logger.Logger) (*API, error) {
@@ -45,10 +49,14 @@ func NewAPI(logger logger.Logger) (*API, error) {
 	if err != nil {
 		return nil, err
 	}
+	db, err := db.NewDB(logger)
+	if err != nil {
+		return nil, err
+	}
 	return &API{
 		Logger: logger,
 		s3:     s3,
-		db:     make(map[string][]Key),
+		db:     db,
 	}, nil
 }
 
@@ -63,7 +71,7 @@ func (a *API) Health(ctx context.Context, in *keeper.Empty) (*keeper.HealthMain,
 const TTL = time.Hour
 
 func (a *API) Register(ctx context.Context, in *keeper.AuthMain) (*keeper.Empty, error) {
-	if ok, err := a.s3.Register(ctx, in.GetUser(), in.GetPassword()); err != nil {
+	if ok, err := a.db.Register(ctx, in.GetUser(), in.GetPassword()); err != nil {
 		return nil, status.Error(codes.Unknown, err.Error())
 	} else if !ok {
 		return nil, status.Error(codes.AlreadyExists, "already exist")
@@ -82,7 +90,7 @@ func (a *API) Register(ctx context.Context, in *keeper.AuthMain) (*keeper.Empty,
 }
 
 func (a *API) Login(ctx context.Context, in *keeper.AuthMain) (*keeper.Empty, error) {
-	if ok, err := a.s3.Login(ctx, in.GetUser(), in.GetPassword()); err != nil {
+	if ok, err := a.db.Login(ctx, in.GetUser(), in.GetPassword()); err != nil {
 		return nil, status.Error(codes.Unknown, err.Error())
 	} else if !ok {
 		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
@@ -114,20 +122,20 @@ func (a *API) Put(ctx context.Context, in *keeper.ObjMain) (*keeper.Empty, error
 	}
 
 	a.Lock()
-	ids := a.db[iss]
+	//ids := a.db[iss]
 	var u string
-	var f bool
-	for _, id := range ids {
-		if id.Name == in.GetName() {
-			u = id.u
-			f = true
-			break
-		}
-	}
-	if !f {
-		u = uuid.NewString()
-		a.db[iss] = append(ids, Key{Name: in.GetName(), Type: int(in.GetType()), u: u})
-	}
+	//var f bool
+	//for _, id := range ids {
+	//	if id.Name == in.GetName() {
+	//		u = id.u
+	//		f = true
+	//		break
+	//	}
+	//}
+	//if !f {
+	//	u = uuid.NewString()
+	//	a.db[iss] = append(ids, Key{Name: in.GetName(), Type: int(in.GetType()), u: u})
+	//}
 	a.Unlock()
 
 	info, err := a.s3.PutObject(ctx, iss, u, bytes.NewReader(in.GetEncData()), int64(len(in.GetEncData())), minio.PutObjectOptions{ContentType: "application/octet-stream"})
@@ -146,17 +154,18 @@ func (a *API) Get(ctx context.Context, in *keeper.ObjMain) (*keeper.ObjMain, err
 	a.Lock()
 	var retErr error
 	var id Key
-	var f bool
-	ids := a.db[iss]
-	for _, id = range ids {
-		if id.Name == in.GetName() {
-			f = true
-			break
-		}
-	}
-	if !f {
-		retErr = status.Error(codes.Unknown, "not found")
-	}
+	log.Println(iss)
+	//var f bool
+	//ids := a.db[iss]
+	//for _, id = range ids {
+	//	if id.Name == in.GetName() {
+	//		f = true
+	//		break
+	//	}
+	//}
+	//if !f {
+	//	retErr = status.Error(codes.Unknown, "not found")
+	//}
 	a.Unlock()
 
 	errMsg := "noerror"
@@ -168,40 +177,4 @@ func (a *API) Get(ctx context.Context, in *keeper.ObjMain) (*keeper.ObjMain, err
 	in.S3Link = id.u
 	in.Type = keeper.TypeCode(id.Type)
 	return in, retErr
-}
-
-func (a *API) Sync(ctx context.Context, in *keeper.SyncMain) (*keeper.SyncMain, error) {
-	a.Lock()
-	defer a.Unlock()
-	u, ok := ctx.Value("iss").(string)
-	if !ok || len(u) == 0 {
-		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
-	}
-	inKeys := make([]Key, len(in.GetKeys()))
-	for i, key := range in.GetKeys() {
-		inKeys[i] = Key{
-			Name: key.GetName(),
-			Type: int(key.GetType()),
-		}
-	}
-	var outKeys []Key
-	oldKeys := a.db[u]
-	hash := make(map[Key]struct{})
-	for _, s := range append(oldKeys, inKeys...) {
-		hash[s] = struct{}{}
-	}
-	outKeys = make([]Key, 0, len(hash))
-	for key := range hash {
-		outKeys = append(outKeys, key)
-	}
-	a.db[u] = outKeys
-
-	in.Keys = make([]*keeper.SyncMain_KeysMain, len(outKeys))
-	for i, key := range outKeys {
-		in.Keys[i] = &keeper.SyncMain_KeysMain{
-			Name: key.Name,
-			Type: keeper.TypeCode(key.Type),
-		}
-	}
-	return in, nil
 }

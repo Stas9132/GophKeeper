@@ -29,11 +29,11 @@ type API struct {
 	sync.Mutex
 	logger.Logger
 	keeper.UnimplementedKeeperServer
-	storage Storage
-	db      map[string][]Key
+	s3 S3
+	db map[string][]Key
 }
 
-type Storage interface {
+type S3 interface {
 	Register(ctx context.Context, user, password string) (bool, error)
 	Login(ctx context.Context, user, password string) (bool, error)
 	Logout(ctx context.Context) (bool, error)
@@ -46,9 +46,9 @@ func NewAPI(logger logger.Logger) (*API, error) {
 		return nil, err
 	}
 	return &API{
-		Logger:  logger,
-		storage: s3,
-		db:      make(map[string][]Key),
+		Logger: logger,
+		s3:     s3,
+		db:     make(map[string][]Key),
 	}, nil
 }
 
@@ -63,7 +63,7 @@ func (a *API) Health(ctx context.Context, in *keeper.Empty) (*keeper.HealthMain,
 const TTL = time.Hour
 
 func (a *API) Register(ctx context.Context, in *keeper.AuthMain) (*keeper.Empty, error) {
-	if ok, err := a.storage.Register(ctx, in.GetUser(), in.GetPassword()); err != nil {
+	if ok, err := a.s3.Register(ctx, in.GetUser(), in.GetPassword()); err != nil {
 		return nil, status.Error(codes.Unknown, err.Error())
 	} else if !ok {
 		return nil, status.Error(codes.AlreadyExists, "already exist")
@@ -82,7 +82,7 @@ func (a *API) Register(ctx context.Context, in *keeper.AuthMain) (*keeper.Empty,
 }
 
 func (a *API) Login(ctx context.Context, in *keeper.AuthMain) (*keeper.Empty, error) {
-	if ok, err := a.storage.Login(ctx, in.GetUser(), in.GetPassword()); err != nil {
+	if ok, err := a.s3.Login(ctx, in.GetUser(), in.GetPassword()); err != nil {
 		return nil, status.Error(codes.Unknown, err.Error())
 	} else if !ok {
 		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
@@ -116,18 +116,21 @@ func (a *API) Put(ctx context.Context, in *keeper.ObjMain) (*keeper.Empty, error
 	a.Lock()
 	ids := a.db[iss]
 	var u string
+	var f bool
 	for _, id := range ids {
 		if id.Name == in.GetName() {
 			u = id.u
-			goto lunlock
+			f = true
+			break
 		}
 	}
-	u = uuid.NewString()
-	a.db[iss] = append(ids, Key{Name: in.GetName(), Type: int(in.GetType()), u: u})
-lunlock:
+	if !f {
+		u = uuid.NewString()
+		a.db[iss] = append(ids, Key{Name: in.GetName(), Type: int(in.GetType()), u: u})
+	}
 	a.Unlock()
 
-	info, err := a.storage.PutObject(ctx, iss, u, bytes.NewReader(in.GetEncData()), int64(len(in.GetEncData())), minio.PutObjectOptions{ContentType: "application/octet-stream"})
+	info, err := a.s3.PutObject(ctx, iss, u, bytes.NewReader(in.GetEncData()), int64(len(in.GetEncData())), minio.PutObjectOptions{ContentType: "application/octet-stream"})
 	if err != nil {
 		return nil, status.Error(codes.Unknown, err.Error())
 	}
@@ -143,14 +146,17 @@ func (a *API) Get(ctx context.Context, in *keeper.ObjMain) (*keeper.ObjMain, err
 	a.Lock()
 	var retErr error
 	var id Key
+	var f bool
 	ids := a.db[iss]
 	for _, id = range ids {
 		if id.Name == in.GetName() {
-			goto lunlock
+			f = true
+			break
 		}
 	}
-	retErr = status.Error(codes.Unknown, "not found")
-lunlock:
+	if !f {
+		retErr = status.Error(codes.Unknown, "not found")
+	}
 	a.Unlock()
 
 	errMsg := "noerror"

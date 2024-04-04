@@ -14,7 +14,7 @@ func TestAPI_Health(t *testing.T) {
 		Mutex                     sync.Mutex
 		Logger                    logger.Logger
 		UnimplementedKeeperServer keeper.UnimplementedKeeperServer
-		storage                   Storage
+		storage                   S3
 		db                        map[string][]Key
 	}
 	type args struct {
@@ -36,7 +36,7 @@ func TestAPI_Health(t *testing.T) {
 				Mutex:                     tt.fields.Mutex,
 				Logger:                    tt.fields.Logger,
 				UnimplementedKeeperServer: tt.fields.UnimplementedKeeperServer,
-				storage:                   tt.fields.storage,
+				s3:                        tt.fields.storage,
 				db:                        tt.fields.db,
 			}
 			got, err := a.Health(tt.args.ctx, tt.args.in)
@@ -56,7 +56,7 @@ func TestAPI_Login(t *testing.T) {
 		Mutex                     sync.Mutex
 		Logger                    logger.Logger
 		UnimplementedKeeperServer keeper.UnimplementedKeeperServer
-		storage                   Storage
+		storage                   S3
 		db                        map[string][]Key
 	}
 	type args struct {
@@ -78,7 +78,7 @@ func TestAPI_Login(t *testing.T) {
 				Mutex:                     tt.fields.Mutex,
 				Logger:                    tt.fields.Logger,
 				UnimplementedKeeperServer: tt.fields.UnimplementedKeeperServer,
-				storage:                   tt.fields.storage,
+				s3:                        tt.fields.storage,
 				db:                        tt.fields.db,
 			}
 			got, err := a.Login(tt.args.ctx, tt.args.in)
@@ -98,7 +98,7 @@ func TestAPI_Logout(t *testing.T) {
 		Mutex                     sync.Mutex
 		Logger                    logger.Logger
 		UnimplementedKeeperServer keeper.UnimplementedKeeperServer
-		storage                   Storage
+		storage                   S3
 		db                        map[string][]Key
 	}
 	type args struct {
@@ -120,7 +120,7 @@ func TestAPI_Logout(t *testing.T) {
 				Mutex:                     tt.fields.Mutex,
 				Logger:                    tt.fields.Logger,
 				UnimplementedKeeperServer: tt.fields.UnimplementedKeeperServer,
-				storage:                   tt.fields.storage,
+				s3:                        tt.fields.storage,
 				db:                        tt.fields.db,
 			}
 			got, err := a.Logout(tt.args.ctx, tt.args.in)
@@ -140,7 +140,7 @@ func TestAPI_Register(t *testing.T) {
 		Mutex                     sync.Mutex
 		Logger                    logger.Logger
 		UnimplementedKeeperServer keeper.UnimplementedKeeperServer
-		storage                   Storage
+		storage                   S3
 		db                        map[string][]Key
 	}
 	type args struct {
@@ -162,7 +162,7 @@ func TestAPI_Register(t *testing.T) {
 				Mutex:                     tt.fields.Mutex,
 				Logger:                    tt.fields.Logger,
 				UnimplementedKeeperServer: tt.fields.UnimplementedKeeperServer,
-				storage:                   tt.fields.storage,
+				s3:                        tt.fields.storage,
 				db:                        tt.fields.db,
 			}
 			got, err := a.Register(tt.args.ctx, tt.args.in)
@@ -182,7 +182,7 @@ func TestAPI_Sync(t *testing.T) {
 		Mutex                     sync.Mutex
 		Logger                    logger.Logger
 		UnimplementedKeeperServer keeper.UnimplementedKeeperServer
-		storage                   Storage
+		storage                   S3
 		db                        map[string][]Key
 	}
 	type args struct {
@@ -204,7 +204,7 @@ func TestAPI_Sync(t *testing.T) {
 				Mutex:                     tt.fields.Mutex,
 				Logger:                    tt.fields.Logger,
 				UnimplementedKeeperServer: tt.fields.UnimplementedKeeperServer,
-				storage:                   tt.fields.storage,
+				s3:                        tt.fields.storage,
 				db:                        tt.fields.db,
 			}
 			got, err := a.Sync(tt.args.ctx, tt.args.in)

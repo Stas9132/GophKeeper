@@ -30,10 +30,10 @@ type Client struct {
 	logger.Logger
 	user  string
 	token string
-	s3    Storage
+	s3    S3
 }
 
-type Storage interface {
+type S3 interface {
 	GetObject(ctx context.Context, bucketName, objectName string, opts minio.GetObjectOptions) (*minio.Object, error)
 }
 

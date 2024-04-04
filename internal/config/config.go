@@ -75,5 +75,5 @@ var (
 )
 
 var (
-	DatabaseDSN = ""
+	DatabaseDSN = "postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable"
 )

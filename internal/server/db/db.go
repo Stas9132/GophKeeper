@@ -2,24 +2,27 @@ package db
 
 import (
 	"context"
+	"crypto/md5"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"github.com/golang-migrate/migrate"
 	"github.com/golang-migrate/migrate/database/postgres"
 	_ "github.com/golang-migrate/migrate/source/file"
+	_ "github.com/lib/pq"
 	"github.com/stas9132/GophKeeper/internal/config"
 	"github.com/stas9132/GophKeeper/internal/logger"
 )
 
 // DBT struct
 type DB struct {
-	logger logger.Logger
-	db     *sql.DB
+	logger.Logger
+	*sql.DB
 }
 
 // NewDB constructor
 func NewDB(l logger.Logger) (*DB, error) {
-	db, err := sql.Open("pgx", config.DatabaseDSN)
+	db, err := sql.Open("postgres", config.DatabaseDSN)
 	if err != nil {
 		l.Error("Error while open db: " + err.Error())
 		return nil, err
@@ -32,7 +35,7 @@ func NewDB(l logger.Logger) (*DB, error) {
 	}
 	m, err := migrate.NewWithDatabaseInstance(
 		"file://internal/server/db/migration",
-		"pgx://"+config.DatabaseDSN, driver)
+		config.DatabaseDSN, driver)
 	if err != nil {
 		l.Error("Error while create migrate: " + err.Error())
 		return nil, err
@@ -44,42 +47,44 @@ func NewDB(l logger.Logger) (*DB, error) {
 	}
 
 	return &DB{
-		logger: l,
-		db:     db,
+		Logger: l,
+		DB:     db,
 	}, nil
 }
 
 func (d *DB) Register(ctx context.Context, user, password string) (bool, error) {
-	//if err := s.MakeBucket(ctx, user, minio.MakeBucketOptions{Region: config.S3Location, ObjectLocking: true}); err != nil {
-	//	return false, err
-	//}
-	//hash := md5.Sum([]byte(password))
-	//info, err := s.PutObject(ctx, authBucketName, user, bytes.NewReader(hash[:]), int64(len(hash)), minio.PutObjectOptions{ContentType: "application/octet-stream"})
-	//if err != nil {
-	//	s.Error(err.Error())
-	//	return false, err
-	//}
-	//s.Info(info.Key + " stored in auth-storage")
+
+	ht := md5.Sum([]byte(password))
+	hash := hex.EncodeToString(ht[:])
+
+	_, err := d.ExecContext(ctx, "INSERT INTO users(user_id, hash) VALUES ($1,$2)", user, hash)
+	if err != nil {
+		d.Error("Unable insert record: " + err.Error())
+		return false, err
+	}
 	return true, nil
 }
 
 func (d *DB) Login(ctx context.Context, user, password string) (bool, error) {
-	//data, err := s.GetObject(ctx, authBucketName, user, minio.GetObjectOptions{})
-	//if err != nil {
-	//	s.Error(err.Error())
-	//	return false, err
-	//}
-	//hash := md5.Sum([]byte(password))
-	//buf, err := io.ReadAll(data)
-	//if err != nil {
-	//	s.Error(err.Error())
-	//	return false, err
-	//}
-	//if c := bytes.Compare(hash[:], buf); c != 0 {
-	//	s.Warn("Invalid credentials for user: " + user)
-	//	return false, err
-	//}
-	//s.Info("Login complete")
+	row := d.QueryRowContext(ctx, "SELECT hash FROM users WHERE user_id = $1", user)
+	var hashDb string
+	if err := row.Scan(&hashDb); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			d.Warn("Userid not found: " + user)
+			return false, nil
+		}
+		d.Error("Unable to get user record: " + err.Error())
+		return false, err
+	}
+
+	ht := md5.Sum([]byte(password))
+	hash := hex.EncodeToString(ht[:])
+
+	if hash != hashDb {
+		d.Warn("Unauthenticated request: " + user)
+		return false, nil
+	}
+
 	return true, nil
 }
 

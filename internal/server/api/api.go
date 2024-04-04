@@ -35,7 +35,8 @@ type API struct {
 }
 
 type S3 interface {
-	PutObject(ctx context.Context, bucketName, objectName string, reader io.Reader, objectSize int64, opts minio.PutObjectOptions) (info minio.UploadInfo, err error)
+	PutObject(context.Context, string, string, io.Reader, int64, minio.PutObjectOptions) (minio.UploadInfo, error)
+	MakeBucket(context.Context, string, minio.MakeBucketOptions) error
 }
 
 type DB interface {
@@ -71,10 +72,12 @@ func (a *API) Health(ctx context.Context, in *keeper.Empty) (*keeper.HealthMain,
 const TTL = time.Hour
 
 func (a *API) Register(ctx context.Context, in *keeper.AuthMain) (*keeper.Empty, error) {
-	if ok, err := a.db.Register(ctx, in.GetUser(), in.GetPassword()); err != nil {
+	if err := a.s3.MakeBucket(ctx, in.GetUser(), minio.MakeBucketOptions{}); err != nil {
+		a.Error("Unable to make bucket: " + in.GetUser() + ". Error: " + err.Error())
 		return nil, status.Error(codes.Unknown, err.Error())
-	} else if !ok {
-		return nil, status.Error(codes.AlreadyExists, "already exist")
+	}
+	if _, err := a.db.Register(ctx, in.GetUser(), in.GetPassword()); err != nil {
+		return nil, status.Error(codes.Unknown, err.Error())
 	}
 
 	j, err := jwt.NewWithClaims(jwt.SigningMethodHS256,
@@ -109,6 +112,9 @@ func (a *API) Login(ctx context.Context, in *keeper.AuthMain) (*keeper.Empty, er
 }
 
 func (a *API) Logout(ctx context.Context, in *keeper.Empty) (*keeper.Empty, error) {
+	if _, err := a.db.Logout(ctx); err != nil {
+		return nil, status.Error(codes.Unknown, err.Error())
+	}
 	if err := grpc.SetHeader(ctx, metadata.Pairs("authorization", "")); err != nil {
 		return nil, status.Error(codes.Unknown, err.Error())
 	}

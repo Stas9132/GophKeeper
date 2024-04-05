@@ -15,8 +15,6 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"io"
-	"log"
-	"sync"
 	"time"
 )
 
@@ -27,7 +25,6 @@ type Key struct {
 }
 
 type API struct {
-	sync.Mutex
 	logger.Logger
 	keeper.UnimplementedKeeperServer
 	s3 S3
@@ -43,6 +40,8 @@ type DB interface {
 	Register(ctx context.Context, user, password string) (bool, error)
 	Login(ctx context.Context, user, password string) (bool, error)
 	Logout(ctx context.Context) (bool, error)
+	PutMeta(context.Context, string, string, int) (*db.Meta, error)
+	GetMeta(context.Context, string, string) (*db.Meta, error)
 }
 
 func NewAPI(logger logger.Logger) (*API, error) {
@@ -127,24 +126,12 @@ func (a *API) Put(ctx context.Context, in *keeper.ObjMain) (*keeper.Empty, error
 		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
 	}
 
-	a.Lock()
-	//ids := a.db[iss]
-	var u string
-	//var f bool
-	//for _, id := range ids {
-	//	if id.Name == in.GetName() {
-	//		u = id.u
-	//		f = true
-	//		break
-	//	}
-	//}
-	//if !f {
-	//	u = uuid.NewString()
-	//	a.db[iss] = append(ids, Key{Name: in.GetName(), Type: int(in.GetType()), u: u})
-	//}
-	a.Unlock()
+	meta, err := a.db.PutMeta(ctx, iss, in.GetName(), int(in.GetType()))
+	if err != nil {
+		return nil, status.Error(codes.Unknown, err.Error())
+	}
 
-	info, err := a.s3.PutObject(ctx, iss, u, bytes.NewReader(in.GetEncData()), int64(len(in.GetEncData())), minio.PutObjectOptions{ContentType: "application/octet-stream"})
+	info, err := a.s3.PutObject(ctx, iss, meta.ObjId, bytes.NewReader(in.GetEncData()), int64(len(in.GetEncData())), minio.PutObjectOptions{ContentType: "application/octet-stream"})
 	if err != nil {
 		return nil, status.Error(codes.Unknown, err.Error())
 	}
@@ -157,30 +144,12 @@ func (a *API) Get(ctx context.Context, in *keeper.ObjMain) (*keeper.ObjMain, err
 		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
 	}
 
-	a.Lock()
-	var retErr error
-	var id Key
-	log.Println(iss)
-	//var f bool
-	//ids := a.db[iss]
-	//for _, id = range ids {
-	//	if id.Name == in.GetName() {
-	//		f = true
-	//		break
-	//	}
-	//}
-	//if !f {
-	//	retErr = status.Error(codes.Unknown, "not found")
-	//}
-	a.Unlock()
-
-	errMsg := "noerror"
-	if retErr != nil {
-		errMsg = retErr.Error()
+	meta, err := a.db.GetMeta(ctx, iss, in.GetName())
+	if err != nil {
+		return nil, status.Error(codes.Unknown, err.Error())
 	}
-	a.Info("find " + in.GetName() + ": " + errMsg)
 
-	in.S3Link = id.u
-	in.Type = keeper.TypeCode(id.Type)
-	return in, retErr
+	in.S3Link = meta.ObjId
+	in.Type = keeper.TypeCode(meta.ObjType)
+	return in, nil
 }

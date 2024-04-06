@@ -115,6 +115,8 @@ func (c *Client) Logout() error {
 	return nil
 }
 
+var dirFS = os.DirFS(".")
+
 func (c *Client) Put(flds []string) error {
 	if len(flds) != 4 {
 		fmt.Println("usage: put <key> <type> <data>")
@@ -132,7 +134,7 @@ func (c *Client) Put(flds []string) error {
 		dataReader = strings.NewReader(data)
 		dataLen = int64(len(data))
 	case keeper.TypeCode_TYPE_BIN:
-		f, err := os.Open(data)
+		f, err := dirFS.Open(data)
 		if err != nil {
 			return err
 		}
@@ -141,6 +143,7 @@ func (c *Client) Put(flds []string) error {
 		if err != nil {
 			return err
 		}
+		dataReader = f
 		dataLen = fst.Size()
 	case keeper.TypeCode_TYPE_CARD:
 		dataReader = strings.NewReader(data)

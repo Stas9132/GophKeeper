@@ -1,12 +1,85 @@
 package client
 
 import (
+	"context"
+	"errors"
+	"github.com/minio/minio-go/v7"
 	"github.com/stas9132/GophKeeper/internal/logger"
 	"github.com/stas9132/GophKeeper/keeper"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"reflect"
 	"testing"
+	"testing/fstest"
 )
+
+type kClStub struct {
+	retObj    *keeper.ObjMain
+	retHealth *keeper.HealthMain
+	retErr    error
+}
+
+func (s *kClStub) Health(context.Context, *keeper.Empty, ...grpc.CallOption) (*keeper.HealthMain, error) {
+	return s.retHealth, s.retErr
+}
+
+func (s *kClStub) Register(context.Context, *keeper.AuthMain, ...grpc.CallOption) (*keeper.Empty, error) {
+	return &keeper.Empty{}, s.retErr
+}
+
+func (s *kClStub) Login(ctx context.Context, in *keeper.AuthMain, opts ...grpc.CallOption) (*keeper.Empty, error) {
+	return &keeper.Empty{}, s.retErr
+}
+
+func (s *kClStub) Logout(context.Context, *keeper.Empty, ...grpc.CallOption) (*keeper.Empty, error) {
+	return &keeper.Empty{}, s.retErr
+}
+
+func (s *kClStub) Put(context.Context, *keeper.ObjMain, ...grpc.CallOption) (*keeper.Empty, error) {
+	return &keeper.Empty{}, s.retErr
+}
+
+func (s *kClStub) Sync(context.Context, *keeper.SyncMain, ...grpc.CallOption) (*keeper.SyncMain, error) {
+	panic("implement me")
+}
+
+func (s *kClStub) Get(context.Context, *keeper.ObjMain, ...grpc.CallOption) (*keeper.ObjMain, error) {
+	return s.retObj, s.retErr
+}
+
+type s3Stub struct {
+	retObj *minio.Object
+	retErr error
+}
+
+func (s *s3Stub) GetObject(ctx context.Context, bucketName, objectName string, opts minio.GetObjectOptions) (*minio.Object, error) {
+	return s.retObj, s.retErr
+}
+
+type minioObjStub struct {
+	retN   int
+	retErr error
+}
+
+func (s *minioObjStub) Read([]byte) (int, error) {
+	return s.retN, s.retErr
+}
+
+type loggerStub struct {
+}
+
+func (l loggerStub) Info(msg string, args ...any) {
+}
+
+func (l loggerStub) Warn(msg string, args ...any) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (l loggerStub) Error(msg string, args ...any) {
+	//TODO implement me
+	panic("implement me")
+}
 
 func TestClient_Get(t *testing.T) {
 	type fields struct {
@@ -25,11 +98,46 @@ func TestClient_Get(t *testing.T) {
 		args    args
 		want    string
 		wantErr bool
-	}{
-		// TODO: Add test cases.
+		f       func()
+	}{{
+		name:    "Wrong arg flds",
+		fields:  fields{},
+		args:    args{flds: []string{"1"}},
+		want:    "",
+		wantErr: true,
+	}, {
+		name:    "Error answer from KeeperClient.Get()",
+		fields:  fields{KeeperClient: &kClStub{retErr: errors.New("error")}},
+		args:    args{flds: []string{"1", "2"}},
+		want:    "",
+		wantErr: true,
+	}, {
+		name:    "Error answer from S3.Get()",
+		fields:  fields{KeeperClient: &kClStub{retObj: &keeper.ObjMain{}}, s3: &s3Stub{retErr: errors.New("error")}},
+		args:    args{flds: []string{"1", "2"}},
+		want:    "",
+		wantErr: true,
+	},
+	//{
+	//	name: "Error answer from aes.NewCipher()",
+	//	fields: fields{KeeperClient: &kClStub{retObj: &keeper.ObjMain{}},
+	//		s3: &s3Stub{retObj: &minio.Object{}}},
+	//	args:    args{flds: []string{"1", "2"}},
+	//	want:    "",
+	//	wantErr: true,
+	//	f: func() {
+	//		config.AESKey = []byte("wrong")
+	//	},
+	//},
 	}
+
+	// TODO: Add test cases.
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.f != nil {
+				tt.f()
+			}
 			c := &Client{
 				KeeperClient: tt.fields.KeeperClient,
 				Logger:       tt.fields.Logger,
@@ -61,8 +169,24 @@ func TestClient_Health(t *testing.T) {
 		name    string
 		fields  fields
 		wantErr bool
-	}{
-		// TODO: Add test cases.
+	}{{
+		name: "Need mock for verify len(c.tocken) > 0",
+		fields: fields{token: "tocken",
+			KeeperClient: &kClStub{retHealth: &keeper.HealthMain{}},
+			Logger:       &loggerStub{}},
+		wantErr: false,
+	}, {
+		name: "Error answer from KeeperClient.Health()",
+		fields: fields{token: "tocken",
+			KeeperClient: &kClStub{retErr: errors.New("error")}},
+		wantErr: true,
+	}, {
+		name: "Ok",
+		fields: fields{token: "tocken",
+			KeeperClient: &kClStub{retHealth: &keeper.HealthMain{}},
+			Logger:       &loggerStub{}},
+		wantErr: false,
+	},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -96,8 +220,23 @@ func TestClient_Login(t *testing.T) {
 		fields  fields
 		args    args
 		wantErr bool
-	}{
-		// TODO: Add test cases.
+	}{{
+		name:    "Wrong arg flds",
+		fields:  fields{},
+		args:    args{flds: []string{"1"}},
+		wantErr: true,
+	}, {
+		name:    "Error answer from KeeperClient.Login",
+		fields:  fields{KeeperClient: &kClStub{retErr: errors.New("error")}},
+		args:    args{flds: []string{"1", "2", "3"}},
+		wantErr: true,
+	},
+	//{
+	//	name:    "Ok, reflect canset() return false",
+	//	fields:  fields{KeeperClient: &kClStub{}},
+	//	args:    args{flds: []string{"1", "2", "3"}},
+	//	wantErr: false,
+	//},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -127,8 +266,16 @@ func TestClient_Logout(t *testing.T) {
 		name    string
 		fields  fields
 		wantErr bool
-	}{
-		// TODO: Add test cases.
+	}{{
+		name:    "Error answer from KeeperClient.Logout()",
+		fields:  fields{KeeperClient: &kClStub{retErr: errors.New("error")}},
+		wantErr: true,
+	}, {
+		name:    "Ok",
+		fields:  fields{KeeperClient: &kClStub{}},
+		wantErr: false,
+	},
+	// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -162,11 +309,65 @@ func TestClient_Put(t *testing.T) {
 		fields  fields
 		args    args
 		wantErr bool
+		f       func()
 	}{
-		// TODO: Add test cases.
+		{
+			name:    "Wrong arg flds",
+			fields:  fields{},
+			args:    args{flds: []string{"1"}},
+			wantErr: true,
+		},
+		{
+			name:    "Key login/password & error on KeeperClient.Put()",
+			fields:  fields{KeeperClient: &kClStub{retErr: errors.New("error")}},
+			args:    args{flds: []string{"1", "2", "1", "4"}},
+			wantErr: true,
+		},
+		{
+			name:    "Key text & error on KeeperClient.Put()",
+			fields:  fields{KeeperClient: &kClStub{retErr: errors.New("error")}},
+			args:    args{flds: []string{"1", "2", "2", "4"}},
+			wantErr: true,
+		},
+		{
+			name:    "Key file & error on Open()",
+			fields:  fields{KeeperClient: &kClStub{retErr: errors.New("error")}},
+			args:    args{flds: []string{"1", "2", "3", "4"}},
+			wantErr: true,
+		},
+		{
+			name:    "Key file & error on Stat()",
+			fields:  fields{KeeperClient: &kClStub{retErr: errors.New("error")}},
+			args:    args{flds: []string{"1", "2", "3", "4"}},
+			wantErr: true,
+			f: func() {
+				dirFS = fstest.MapFS{"4": &fstest.MapFile{}}
+			},
+		},
+		{
+			name:    "Key card & error on KeeperClient.Put()",
+			fields:  fields{KeeperClient: &kClStub{retErr: errors.New("error")}},
+			args:    args{flds: []string{"1", "2", "4", "4"}},
+			wantErr: true,
+		},
+		{
+			name:    "Unknown key name",
+			fields:  fields{},
+			args:    args{flds: []string{"1", "2", "", "4"}},
+			wantErr: true,
+		},
+		{
+			name:    "Ok",
+			fields:  fields{KeeperClient: &kClStub{}, Logger: &loggerStub{}},
+			args:    args{flds: []string{"1", "2", "3", "4"}},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.f != nil {
+				tt.f()
+			}
 			c := &Client{
 				KeeperClient: tt.fields.KeeperClient,
 				Logger:       tt.fields.Logger,
@@ -197,8 +398,17 @@ func TestClient_Register(t *testing.T) {
 		fields  fields
 		args    args
 		wantErr bool
-	}{
-		// TODO: Add test cases.
+	}{{
+		name:    "Wrong arg flds",
+		fields:  fields{},
+		args:    args{flds: []string{"1"}},
+		wantErr: true,
+	}, {
+		name:    "Wrong arg flds",
+		fields:  fields{KeeperClient: &kClStub{retErr: errors.New("error")}},
+		args:    args{flds: []string{"1", "2", "3"}},
+		wantErr: true,
+	},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

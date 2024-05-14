@@ -30,7 +30,7 @@ service keeper {
     };
   }
 
-  rpc Put (ObjMain) returns(Empty){
+  rpc Put (stream ObjMain) returns(Empty){
     option (google.api.http) = {
       post: "/put"
       body: "*"
@@ -64,6 +64,7 @@ message ObjMain {
   TypeCode Type = 2;
   bytes EncData = 3;
   string s3Link = 4;
+  int64 Size = 5;
 }
 
 enum TypeCode {
@@ -73,13 +74,3 @@ enum TypeCode {
   TYPE_BIN=3;
   TYPE_CARD=4;
 }
-
-message SyncMain {
-  message KeysMain{
-    string Name = 1;
-    TypeCode Type = 2;
-  }
-  repeated KeysMain Keys = 1;
-}
-
-

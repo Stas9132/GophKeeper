@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"log"
 )
 
 func interceptor(logger logger.Logger) grpc.UnaryServerInterceptor {
@@ -59,6 +60,57 @@ func interceptor(logger logger.Logger) grpc.UnaryServerInterceptor {
 	}
 }
 
+func interceptorStream(logger logger.Logger) grpc.StreamServerInterceptor {
+	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+
+		switch info.FullMethod {
+		case //"/keeper.keeper/Health",
+			"/keeper.keeper/Register",
+			"/keeper.keeper/Login",
+			"/keeper.keeper/Logout":
+			return handler(srv, ss)
+		default:
+		}
+
+		// Get metadata from context
+		md, ok := metadata.FromIncomingContext(ss.Context())
+		if !ok {
+			status.Errorf(codes.Unauthenticated, "missing metadata")
+		}
+
+		tmp, ok := md["authorization"]
+		if !ok || len(tmp) < 1 {
+			status.Errorf(codes.Unauthenticated, "missing metadata")
+		}
+		j := tmp[0]
+
+		t, err := jwt.ParseWithClaims(j, &jwt.MapClaims{}, func(t *jwt.Token) (interface{}, error) {
+			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, errors.New("unexpected signed method")
+			}
+			return config.JwtKey, nil
+		})
+		if err != nil {
+			return status.Errorf(codes.Unauthenticated, err.Error())
+		}
+
+		ctx := ss.Context()
+		if c, ok := t.Claims.(*jwt.MapClaims); ok && t.Valid {
+			if u, ok := (*c)["iss"].(string); ok {
+				ctx = context.WithValue(ctx, "iss", u)
+			}
+		} else {
+			log.Println(c)
+		}
+
+		return handler(srv, ss)
+	}
+}
+
 func UnaryServerInterceptor(logger logger.Logger) grpc.UnaryServerInterceptor {
 	return interceptor(logger)
+}
+
+func StreamServerInterceptor(logger logger.Logger) grpc.StreamServerInterceptor {
+	return interceptorStream(logger)
 }

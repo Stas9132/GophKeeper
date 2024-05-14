@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/minio/minio-go/v7"
 	"github.com/stas9132/GophKeeper/internal/config"
@@ -120,23 +121,49 @@ func (a *API) Logout(ctx context.Context, in *keeper.Empty) (*keeper.Empty, erro
 	return &keeper.Empty{}, nil
 }
 
-func (a *API) Put(ctx context.Context, in *keeper.ObjMain) (*keeper.Empty, error) {
-	iss, ok := ctx.Value("iss").(string)
+func (a *API) Put(server keeper.Keeper_PutServer) error {
+	fmt.Println("a", server.Context())
+
+	iss, ok := server.Context().Value("iss").(string)
 	if !ok {
-		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+		return status.Error(codes.Unauthenticated, "unauthenticated")
 	}
 
-	meta, err := a.db.PutMeta(ctx, iss, in.GetName(), int(in.GetType()))
+	fmt.Println("aa")
+
+	pr, pw := io.Pipe()
+	obj, err := server.Recv()
 	if err != nil {
-		return nil, status.Error(codes.Unknown, err.Error())
+		a.Error("Recv 1-st chunk", "error", err)
+		return status.Error(codes.Unknown, err.Error())
+	}
+	name := obj.GetName()
+	Type := obj.GetType()
+	size := obj.GetSize()
+	if _, err = io.Copy(pw, bytes.NewReader(obj.GetEncData())); err != nil {
+		a.Error("io.Copy()", "error", err)
+		return status.Error(codes.Unknown, err.Error())
+	}
+	go func() {
+		for obj2, err2 := server.Recv(); err2 == nil; obj2, err2 = server.Recv() {
+			if _, err2 = io.Copy(pw, bytes.NewReader(obj2.GetEncData())); err != nil {
+				a.Error("io.Copy()", "error", err2)
+				return
+			}
+		}
+	}()
+
+	meta, err := a.db.PutMeta(server.Context(), iss, name, int(Type))
+	if err != nil {
+		return status.Error(codes.Unknown, err.Error())
 	}
 
-	info, err := a.s3.PutObject(ctx, iss, meta.ObjId, bytes.NewReader(in.GetEncData()), int64(len(in.GetEncData())), minio.PutObjectOptions{ContentType: "application/octet-stream"})
+	info, err := a.s3.PutObject(server.Context(), iss, meta.ObjId, pr, size, minio.PutObjectOptions{ContentType: "application/octet-stream"})
 	if err != nil {
-		return nil, status.Error(codes.Unknown, err.Error())
+		return status.Error(codes.Unknown, err.Error())
 	}
 	a.Info(info.Bucket + ":" + info.Key + " stored in s3")
-	return &keeper.Empty{}, nil
+	return nil
 }
 func (a *API) Get(ctx context.Context, in *keeper.ObjMain) (*keeper.ObjMain, error) {
 	iss, ok := ctx.Value("iss").(string)

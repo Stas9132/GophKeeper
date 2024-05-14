@@ -117,6 +117,8 @@ func (c *Client) Logout() error {
 
 var dirFS = os.DirFS(".")
 
+const ChunkSize = 1024
+
 func (c *Client) Put(flds []string) error {
 	if len(flds) != 4 {
 		fmt.Println("usage: put <key> <type> <data>")
@@ -175,14 +177,29 @@ func (c *Client) Put(flds []string) error {
 	bytes = aesgcm.Seal(nil, config.AESnonce, bytes, nil)
 
 	ctx := metadata.NewOutgoingContext(context.Background(), metadata.Pairs("authorization", c.token))
-	_, err = c.KeeperClient.Put(ctx, &keeper.ObjMain{
-		Name:    key.Name,
-		Type:    keeper.TypeCode(key.Type),
-		EncData: bytes,
-	})
+	putClient, err := c.KeeperClient.Put(ctx)
 	if err != nil {
 		return err
 	}
+	for start := 0; start < len(bytes); start += ChunkSize {
+		end := start + ChunkSize
+		if end > len(bytes) {
+			end = len(bytes)
+		}
+		if err = putClient.Send(&keeper.ObjMain{
+			Name:    key.Name,
+			Type:    keeper.TypeCode(key.Type),
+			EncData: bytes[start:end],
+			Size:    int64(len(bytes)),
+		}); err != nil {
+			c.Error("Chank send errror", "error", err)
+			return err
+		}
+	}
+	if err = putClient.CloseSend(); err != nil {
+		c.Error("CloseSend", "error", err)
+	}
+
 	c.Info("Uploaded " + key.Name + " of size: " + strconv.FormatInt(dataLen, 10) + " succesfully.")
 
 	return nil

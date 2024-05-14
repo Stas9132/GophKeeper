@@ -61,7 +61,7 @@ func run(ctx context.Context) <-chan error {
 			logging.UnaryServerInterceptor(
 				interceptorLogger(ll), []logging.Option{logging.WithLogOnEvents(logging.StartCall, logging.FinishCall)}...),
 			auth.UnaryServerInterceptor(ll),
-		))
+		), grpc.ChainStreamInterceptor(auth.StreamServerInterceptor(ll)))
 	lis, err := net.Listen("tcp", config.ListenAddress)
 	if err != nil {
 		log.Fatalln(lis, err)

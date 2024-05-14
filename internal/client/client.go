@@ -222,7 +222,6 @@ func (c *Client) Get(flds []string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	out.GetType().String()
 
 	return out.GetType().String() + ": " + string(bytes), nil
 }

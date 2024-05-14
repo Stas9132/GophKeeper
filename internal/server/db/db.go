@@ -19,6 +19,7 @@ import (
 type DB struct {
 	logger.Logger
 	*sql.DB
+	M *migrate.Migrate
 }
 
 // NewDB constructor
@@ -35,7 +36,7 @@ func NewDB(l logger.Logger) (*DB, error) {
 		return nil, err
 	}
 	m, err := migrate.NewWithDatabaseInstance(
-		"file://internal/server/db/migration",
+		"file://migration",
 		config.DatabaseDSN, driver)
 	if err != nil {
 		l.Error("Error while create migrate: " + err.Error())
@@ -50,6 +51,7 @@ func NewDB(l logger.Logger) (*DB, error) {
 	return &DB{
 		Logger: l,
 		DB:     db,
+		M:      m,
 	}, nil
 }
 

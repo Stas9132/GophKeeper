@@ -10,6 +10,8 @@ import (
 	"github.com/stas9132/GophKeeper/keeper"
 	"google.golang.org/grpc/metadata"
 	"io"
+	"log/slog"
+	"os"
 	"reflect"
 	"testing"
 )
@@ -263,6 +265,55 @@ func TestAPI_Logout(t *testing.T) {
 	}
 }
 
+type PutServer struct {
+	ctx    context.Context
+	retErr error
+}
+
+func (p PutServer) SendAndClose(empty *keeper.Empty) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (p PutServer) Recv() (*keeper.ObjMain, error) {
+	return &keeper.ObjMain{
+		Name:    "",
+		Type:    0,
+		EncData: []byte{0},
+		S3Link:  "",
+		Size:    1,
+	}, p.retErr
+}
+
+func (p PutServer) SetHeader(md metadata.MD) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (p PutServer) SendHeader(md metadata.MD) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (p PutServer) SetTrailer(md metadata.MD) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (p PutServer) Context() context.Context {
+	return p.ctx
+}
+
+func (p PutServer) SendMsg(m any) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (p PutServer) RecvMsg(m any) error {
+	//TODO implement me
+	panic("implement me")
+}
+
 func TestAPI_Put(t *testing.T) {
 	type fields struct {
 		Logger                    logger.Logger
@@ -271,8 +322,8 @@ func TestAPI_Put(t *testing.T) {
 		db                        DB
 	}
 	type args struct {
-		ctx context.Context
-		in  *keeper.ObjMain
+		ctx       context.Context
+		PutServer keeper.Keeper_PutServer
 	}
 	tests := []struct {
 		name    string
@@ -283,25 +334,31 @@ func TestAPI_Put(t *testing.T) {
 	}{{
 		name:    "Unkonown issuer",
 		fields:  fields{},
-		args:    args{ctx: context.Background()},
+		args:    args{PutServer: PutServer{ctx: context.Background()}},
+		want:    nil,
+		wantErr: true,
+	}, {
+		name:    "Error answer from Recv()",
+		fields:  fields{db: &dbStub{retErr: errors.New("error")}, Logger: logger.NewSlogLogger()},
+		args:    args{PutServer: PutServer{ctx: context.WithValue(context.Background(), "iss", "user"), retErr: errors.New("err")}},
 		want:    nil,
 		wantErr: true,
 	}, {
 		name:    "Error answer from db.PutMeta()",
 		fields:  fields{db: &dbStub{retErr: errors.New("error")}},
-		args:    args{ctx: context.WithValue(context.Background(), "iss", "user")},
+		args:    args{PutServer: PutServer{ctx: context.WithValue(context.Background(), "iss", "user")}},
 		want:    nil,
 		wantErr: true,
 	}, {
 		name:    "Error answer from s3.PutObject()",
-		fields:  fields{db: &dbStub{retMeta: &db.Meta{}}, s3: &s3Stub{retErr: errors.New("error")}},
-		args:    args{ctx: context.WithValue(context.Background(), "iss", "user")},
+		fields:  fields{db: &dbStub{retMeta: &db.Meta{}}, s3: &s3Stub{retErr: errors.New("error")}, Logger: logger.NewSlogLogger()},
+		args:    args{PutServer: PutServer{ctx: context.WithValue(context.Background(), "iss", "user")}},
 		want:    nil,
 		wantErr: true,
 	}, {
-		name:    "Error answer from s3.PutObject()",
+		name:    "No error answer from s3.PutObject()",
 		fields:  fields{db: &dbStub{retMeta: &db.Meta{}}, s3: &s3Stub{}, Logger: logger.NewSlogLogger()},
-		args:    args{ctx: context.WithValue(context.Background(), "iss", "user")},
+		args:    args{PutServer: PutServer{ctx: context.WithValue(context.Background(), "iss", "user")}},
 		want:    &keeper.Empty{},
 		wantErr: false,
 	},
@@ -315,13 +372,10 @@ func TestAPI_Put(t *testing.T) {
 				s3:                        tt.fields.s3,
 				db:                        tt.fields.db,
 			}
-			got, err := a.Put(tt.args.ctx, tt.args.in)
+			err := a.Put(tt.args.PutServer)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Put() error = %v, wantErr %v", err, tt.wantErr)
 				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Put() got = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -405,6 +459,33 @@ func TestNewAPI(t *testing.T) {
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("NewAPI() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNewAPI1(t *testing.T) {
+	type args struct {
+		logger logger.Logger
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *API
+		wantErr bool
+	}{
+		{name: "ok", args: struct{ logger logger.Logger }{logger: slog.Default()}, want: &API{}, wantErr: false}, // TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			os.Chdir("../../..")
+			got, err := NewAPI(tt.args.logger)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("NewAPI() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got == nil {
 				t.Errorf("NewAPI() got = %v, want %v", got, tt.want)
 			}
 		})

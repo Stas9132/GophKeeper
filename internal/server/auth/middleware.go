@@ -60,6 +60,13 @@ func interceptor(logger logger.Logger) grpc.UnaryServerInterceptor {
 	}
 }
 
+type serverStreamWrapper struct {
+	grpc.ServerStream
+	ctx context.Context
+}
+
+func (w *serverStreamWrapper) Context() context.Context { return w.ctx }
+
 func interceptorStream(logger logger.Logger) grpc.StreamServerInterceptor {
 	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 
@@ -75,12 +82,12 @@ func interceptorStream(logger logger.Logger) grpc.StreamServerInterceptor {
 		// Get metadata from context
 		md, ok := metadata.FromIncomingContext(ss.Context())
 		if !ok {
-			status.Errorf(codes.Unauthenticated, "missing metadata")
+			return status.Errorf(codes.Unauthenticated, "missing metadata")
 		}
 
 		tmp, ok := md["authorization"]
 		if !ok || len(tmp) < 1 {
-			status.Errorf(codes.Unauthenticated, "missing metadata")
+			return status.Errorf(codes.Unauthenticated, "missing metadata")
 		}
 		j := tmp[0]
 
@@ -103,7 +110,10 @@ func interceptorStream(logger logger.Logger) grpc.StreamServerInterceptor {
 			log.Println(c)
 		}
 
-		return handler(srv, ss)
+		return handler(srv, &serverStreamWrapper{
+			ServerStream: ss,
+			ctx:          ctx,
+		})
 	}
 }
 

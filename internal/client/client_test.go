@@ -8,6 +8,8 @@ import (
 	"github.com/stas9132/GophKeeper/keeper"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/metadata"
+	"log/slog"
 	"reflect"
 	"testing"
 	"testing/fstest"
@@ -35,16 +37,53 @@ func (s *kClStub) Logout(context.Context, *keeper.Empty, ...grpc.CallOption) (*k
 	return &keeper.Empty{}, s.retErr
 }
 
-func (s *kClStub) Put(context.Context, *keeper.ObjMain, ...grpc.CallOption) (*keeper.Empty, error) {
-	return &keeper.Empty{}, s.retErr
-}
-
-func (s *kClStub) Sync(context.Context, *keeper.SyncMain, ...grpc.CallOption) (*keeper.SyncMain, error) {
-	panic("implement me")
+func (s *kClStub) Put(ctx context.Context, opts ...grpc.CallOption) (keeper.Keeper_PutClient, error) {
+	return &kPutClStub{}, s.retErr
 }
 
 func (s *kClStub) Get(context.Context, *keeper.ObjMain, ...grpc.CallOption) (*keeper.ObjMain, error) {
 	return s.retObj, s.retErr
+}
+
+type kPutClStub struct {
+}
+
+func (k kPutClStub) Send(main *keeper.ObjMain) error {
+	return nil
+}
+
+func (k kPutClStub) CloseAndRecv() (*keeper.Empty, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (k kPutClStub) Header() (metadata.MD, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (k kPutClStub) Trailer() metadata.MD {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (k kPutClStub) CloseSend() error {
+	return nil
+}
+
+func (k kPutClStub) Context() context.Context {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (k kPutClStub) SendMsg(m any) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (k kPutClStub) RecvMsg(m any) error {
+	//TODO implement me
+	panic("implement me")
 }
 
 type s3Stub struct {
@@ -359,7 +398,7 @@ func TestClient_Put(t *testing.T) {
 		{
 			name:    "Ok",
 			fields:  fields{KeeperClient: &kClStub{}, Logger: &loggerStub{}},
-			args:    args{flds: []string{"1", "2", "3", "4"}},
+			args:    args{flds: []string{"1", "2", "2", "4"}},
 			wantErr: false,
 		},
 	}
@@ -447,6 +486,36 @@ func TestNewClient(t *testing.T) {
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("NewClient() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNewClient1(t *testing.T) {
+	type args struct {
+		l       logger.Logger
+		tlsCred credentials.TransportCredentials
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *Client
+		wantErr bool
+	}{{name: "ok", args: struct {
+		l       logger.Logger
+		tlsCred credentials.TransportCredentials
+	}{l: slog.Default(), tlsCred: credentials.NewTLS(nil)}, want: &Client{}, wantErr: false},
+	// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := NewClient(tt.args.l, tt.args.tlsCred)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("NewClient() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got == nil {
 				t.Errorf("NewClient() got = %v, want %v", got, tt.want)
 			}
 		})

@@ -181,6 +181,8 @@ func (c *Client) Put(flds []string) error {
 	if err != nil {
 		return err
 	}
+	defer putClient.CloseSend()
+
 	for start := 0; start < len(bytes); start += ChunkSize {
 		end := start + ChunkSize
 		if end > len(bytes) {
@@ -192,12 +194,9 @@ func (c *Client) Put(flds []string) error {
 			EncData: bytes[start:end],
 			Size:    int64(len(bytes)),
 		}); err != nil {
-			c.Error("Chank send errror", "error", err)
+			c.Error("Chunk send error", "error", err)
 			return err
 		}
-	}
-	if err = putClient.CloseSend(); err != nil {
-		c.Error("CloseSend", "error", err)
 	}
 
 	c.Info("Uploaded " + key.Name + " of size: " + strconv.FormatInt(dataLen, 10) + " succesfully.")
@@ -206,8 +205,8 @@ func (c *Client) Put(flds []string) error {
 }
 
 func (c *Client) Get(flds []string) (string, error) {
-	if len(flds) != 2 {
-		fmt.Println("usage: get <key>")
+	if len(flds) < 2 {
+		fmt.Println("usage: get <key> [filename]")
 		return "", ErrInvFormatCommand
 	}
 	keyName := flds[1]
@@ -240,5 +239,15 @@ func (c *Client) Get(flds []string) (string, error) {
 		return "", err
 	}
 
-	return out.GetType().String() + ": " + string(bytes), nil
+	switch out.GetType() {
+	case keeper.TypeCode_TYPE_BIN:
+		if len(flds) != 3 {
+			fmt.Println("usage: get <key> [filename]")
+			return "", ErrInvFormatCommand
+		}
+		return out.GetType().String() + " -> " + flds[2], os.WriteFile(flds[2], bytes, 0644)
+	default:
+		return out.GetType().String() + ": " + string(bytes), nil
+	}
+
 }

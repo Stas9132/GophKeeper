@@ -3,7 +3,6 @@ package api
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/minio/minio-go/v7"
 	"github.com/stas9132/GophKeeper/internal/config"
@@ -122,14 +121,11 @@ func (a *API) Logout(ctx context.Context, in *keeper.Empty) (*keeper.Empty, erro
 }
 
 func (a *API) Put(server keeper.Keeper_PutServer) error {
-	fmt.Println("a", server.Context())
 
 	iss, ok := server.Context().Value("iss").(string)
 	if !ok {
 		return status.Error(codes.Unauthenticated, "unauthenticated")
 	}
-
-	fmt.Println("aa")
 
 	pr, pw := io.Pipe()
 	obj, err := server.Recv()
@@ -140,17 +136,18 @@ func (a *API) Put(server keeper.Keeper_PutServer) error {
 	name := obj.GetName()
 	Type := obj.GetType()
 	size := obj.GetSize()
-	if _, err = io.Copy(pw, bytes.NewReader(obj.GetEncData())); err != nil {
-		a.Error("io.Copy()", "error", err)
-		return status.Error(codes.Unknown, err.Error())
-	}
 	go func() {
+		if _, err2 := io.Copy(pw, bytes.NewReader(obj.GetEncData())); err != nil {
+			a.Error("io.Copy()", "error", err2)
+			return
+		}
 		for obj2, err2 := server.Recv(); err2 == nil; obj2, err2 = server.Recv() {
 			if _, err2 = io.Copy(pw, bytes.NewReader(obj2.GetEncData())); err != nil {
 				a.Error("io.Copy()", "error", err2)
 				return
 			}
 		}
+		_ = pw.Close()
 	}()
 
 	meta, err := a.db.PutMeta(server.Context(), iss, name, int(Type))
@@ -160,8 +157,10 @@ func (a *API) Put(server keeper.Keeper_PutServer) error {
 
 	info, err := a.s3.PutObject(server.Context(), iss, meta.ObjId, pr, size, minio.PutObjectOptions{ContentType: "application/octet-stream"})
 	if err != nil {
+		a.Error("s3.PutObject", "error", err)
 		return status.Error(codes.Unknown, err.Error())
 	}
+
 	a.Info(info.Bucket + ":" + info.Key + " stored in s3")
 	return nil
 }

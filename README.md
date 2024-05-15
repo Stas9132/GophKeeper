@@ -59,5 +59,9 @@ put obj1 1 data1
 
 get obj1
 
+put obj2 3 inFilename
+
+get obj2 outFilename
+
 exit
 
